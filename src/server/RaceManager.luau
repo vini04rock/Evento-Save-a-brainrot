@@ -160,16 +160,17 @@ local function runRace(racers: { Player })
 				local place = placeCount
 				local raceTime = os.clock() - startTime
 
-				local prize = RaceConfig.PrizeByPlace[place]
-				if prize then
-					PrizeService.Award(player, prize)
-				end
+				-- Grava o prêmio pendente (top 3 = pacote+braincoins; demais = consolação).
+				-- O lobby entrega quando o player volta.
+				PrizeService.AwardPlace(player, place)
+				local reward = PrizeService.ResolveReward(place)
 
 				RacerState.SetFrozen(player, true) -- congela quem já chegou
 				Remotes.RaceState:FireClient(player, {
 					phase = "finished",
 					place = place,
 					time = raceTime,
+					reward = reward, -- { Pack, Braincoins } — pro cliente mostrar
 				})
 
 				-- Teleporta esse finalista de volta depois de um tempinho (vê o resultado dele).

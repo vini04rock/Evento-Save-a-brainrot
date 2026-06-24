@@ -79,7 +79,16 @@ RaceConfig.Elements = {
 -- "Save a Brainrot (BETA)" = 90667727140026 (mesmo experience: 9974657761).
 RaceConfig.MainPlaceId = 90667727140026
 
--- Prêmio em moedas por colocação (índice = posição). Fora da lista, sem prêmio.
-RaceConfig.PrizeByPlace = { 100, 50, 25 }
+-- Prêmio por colocação (índice = posição). Pack = id do pacote no jogo principal.
+-- A entrega é cross-place: a corrida grava um "prêmio pendente" num DataStore e o LOBBY
+-- entrega quando o player volta (ver PrizeService + o RaceRewardGrantService no lobby).
+RaceConfig.PrizeByPlace = {
+	{ Pack = "BrainrotPack2", Braincoins = 25 }, -- 1º
+	{ Pack = "BrainrotPack1", Braincoins = 12 }, -- 2º
+	{ Pack = "BrainrotPack1", Braincoins = 6 }, -- 3º
+}
+
+-- Braincoins de consolação pra quem TERMINA fora do top 3 (reduz frustração infantil).
+RaceConfig.FinishConsolationBraincoins = 3
 
 return RaceConfig
