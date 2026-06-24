@@ -88,7 +88,7 @@ RaceConfig.PrizeByPlace = {
 	{ Pack = "BrainrotPack1", Braincoins = 6 }, -- 3º
 }
 
--- Braincoins de consolação pra quem TERMINA fora do top 3 (reduz frustração infantil).
-RaceConfig.FinishConsolationBraincoins = 3
+-- Consolação pra quem TERMINA fora do top 3 (reduz frustração infantil): Yen.
+RaceConfig.FinishConsolationYen = 15000
 
 return RaceConfig

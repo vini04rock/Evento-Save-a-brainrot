@@ -9,7 +9,7 @@
 	de save. O padrão seguro é: corrida GRAVA pendente → lobby LÊ + concede + limpa.
 
 	DataStore: "PendingRaceRewards_v1", chave = "u_<userId>".
-	Valor: { Packs = { "BrainrotPack2", ... }, Braincoins = N }  (acumula).
+	Valor: { Packs = { "BrainrotPack2", ... }, Braincoins = N, Yen = N }  (acumula).
 ]]
 
 local DataStoreService = game:GetService("DataStoreService")
@@ -34,13 +34,13 @@ function PrizeService.Setup()
 	end
 end
 
--- Resolve o prêmio de uma colocação. place > #PrizeByPlace = consolação (só Braincoins).
-function PrizeService.ResolveReward(place: number): { Pack: string?, Braincoins: number }
+-- Resolve o prêmio de uma colocação. place > #PrizeByPlace = consolação (Yen).
+function PrizeService.ResolveReward(place: number): { Pack: string?, Braincoins: number, Yen: number }
 	local podium = RaceConfig.PrizeByPlace[place]
 	if podium then
-		return { Pack = podium.Pack, Braincoins = tonumber(podium.Braincoins) or 0 }
+		return { Pack = podium.Pack, Braincoins = tonumber(podium.Braincoins) or 0, Yen = 0 }
 	end
-	return { Pack = nil, Braincoins = tonumber(RaceConfig.FinishConsolationBraincoins) or 0 }
+	return { Pack = nil, Braincoins = 0, Yen = tonumber(RaceConfig.FinishConsolationYen) or 0 }
 end
 
 -- Grava o prêmio da colocação como pendente (acumula com o que já houver).
@@ -49,20 +49,22 @@ function PrizeService.AwardPlace(player: Player, place: number)
 		return
 	end
 	local reward = PrizeService.ResolveReward(place)
-	if (not reward.Pack) and reward.Braincoins <= 0 then
+	if (not reward.Pack) and reward.Braincoins <= 0 and reward.Yen <= 0 then
 		return
 	end
 
 	local key = "u_" .. tostring(player.UserId)
 	local ok, err = pcall(function()
 		(store :: DataStore):UpdateAsync(key, function(old)
-			local data = (typeof(old) == "table") and old or { Packs = {}, Braincoins = 0 }
+			local data = (typeof(old) == "table") and old or { Packs = {}, Braincoins = 0, Yen = 0 }
 			data.Packs = (typeof(data.Packs) == "table") and data.Packs or {}
 			data.Braincoins = tonumber(data.Braincoins) or 0
+			data.Yen = tonumber(data.Yen) or 0
 			if reward.Pack then
 				table.insert(data.Packs, reward.Pack)
 			end
 			data.Braincoins += reward.Braincoins
+			data.Yen += reward.Yen
 			return data
 		end)
 	end)
