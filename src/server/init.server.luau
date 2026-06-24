@@ -7,6 +7,8 @@
 ]]
 
 local MapBuilder = require(script.MapBuilder)
+local RaceManager = require(script.RaceManager)
 
 MapBuilder.Build()
-print("[Evento] Chão construído.")
+RaceManager.Start()
+print("[Evento] Mapa construído e corrida iniciada.")

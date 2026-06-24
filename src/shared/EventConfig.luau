@@ -20,6 +20,15 @@ EventConfig.MapName = "EventMap"
 -- Origem do mapa (topo do chão em Y; largada em Z).
 EventConfig.Origin = Vector3.new(0, 0, 0)
 
+-- Paleta de cores por ZONA (uma cor por segmento). Dá a sensação de progresso
+-- na corrida: o player vê a pista mudando de cor até a chegada. Cores alegres
+-- (jogo infantil). Se houver mais segmentos que cores, a paleta se repete.
+EventConfig.Palette = {
+	Color3.fromRGB(0, 162, 255), -- zona 1: azul céu
+	Color3.fromRGB(255, 193, 7), -- zona 2: amarelo
+	Color3.fromRGB(255, 82, 145), -- zona 3: rosa
+}
+
 -- Chão (tudo em studs).
 -- Uma Part no Roblox tem tamanho MÁXIMO de ~2048 studs por eixo, então o chão
 -- é feito de vários segmentos emendados em sequência (a partir do spawn, em +Z).
@@ -29,9 +38,10 @@ EventConfig.Floor = {
 	SegmentLength = 2000, -- comprimento de CADA segmento (mantenha <= 2000)
 	SegmentCount = 3, -- quantos segmentos emendar (3 x 2000 = 6000 no total)
 	Thickness = 4, -- espessura (eixo Y)
-	Color = Color3.fromRGB(163, 162, 165), -- cinza neutro clássico
+	Color = Color3.fromRGB(163, 162, 165), -- usado só se UsePalette = false
 	Material = Enum.Material.Plastic, -- plástico
 	Studs = true, -- topo com studs (textura de bolinhas)
+	UsePalette = true, -- colore por zona (tom pastel da cor da zona)
 }
 
 -- Comprimento total do corredor (calculado a partir dos segmentos).
@@ -64,13 +74,39 @@ EventConfig.FinishLine = {
 	Material = Enum.Material.SmoothPlastic,
 }
 
--- Spawn (largada): onde o jogador nasce, no INÍCIO do corredor (Z baixo).
+-- Paredes laterais (esquerda e direita), ao longo de todo o comprimento.
+-- Também são SEGMENTADAS (uma por segmento do chão) por causa do limite ~2048.
+EventConfig.Walls = {
+	Enabled = true,
+	Height = 400, -- altura em Y
+	Thickness = 4, -- espessura
+	Color = Color3.fromRGB(150, 155, 165), -- usado só se UsePalette = false
+	Material = Enum.Material.SmoothPlastic,
+	StartCap = true, -- parede fechando o INÍCIO (atrás da largada)
+	FinishCap = true, -- parede fechando o FIM (na chegada)
+	UsePalette = true, -- paredes na cor viva da zona (acompanham o chão)
+}
+
+-- Teto por cima do corredor. Também SEGMENTADO (limite ~2048). Fica apoiado
+-- em cima das paredes (na altura Walls.Height). Vidro claro pra manter o
+-- corredor bem iluminado e dar um ar de galeria.
+EventConfig.Ceiling = {
+	Enabled = true,
+	Thickness = 4, -- espessura (eixo Y)
+	Color = Color3.fromRGB(205, 238, 255), -- azul bem claro
+	Material = Enum.Material.Glass,
+	Transparency = 0.5, -- 0 = opaco, 1 = invisível
+}
+
+-- Spawns (largada): vários pontos espalhados pela LARGURA, em cima da faixa
+-- verde, no início do corredor. Invisíveis (só funcionais).
 EventConfig.Spawn = {
 	Enabled = true,
-	Inset = 25, -- distância (em Z) a partir do começo do chão
-	Size = Vector3.new(14, 1, 14), -- tamanho do pad de spawn
-	Color = Color3.fromRGB(85, 170, 255),
-	Transparency = 0, -- 1 = invisível (só funcional)
+	Count = 12, -- quantos spawns espalhar pela largura
+	Margin = 30, -- folga das paredes laterais ao distribuir
+	ZOffset = 25, -- posição em Z (em cima da faixa verde de largada)
+	Size = Vector3.new(8, 1, 8), -- tamanho de cada spawn
+	Transparency = 1, -- 1 = invisível
 }
 
 return EventConfig

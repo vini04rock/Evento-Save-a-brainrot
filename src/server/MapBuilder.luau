@@ -4,8 +4,9 @@
 	----------
 	Constrói o mapa do evento por código, lendo o EventConfig.
 
-	Fase atual: só o chão. É de propósito enxuto — paredes/teto/mecânicas
-	entram depois, cada um no seu lugar, sem quebrar o que já existe.
+	Monta: chão (segmentado), paredes laterais + tampas, teto, linha de largada
+	(verde), linha de chegada (xadrez) e spawns. Tudo parametrizado pela config;
+	as cores por zona vêm da EventConfig.Palette. Mecânicas entram depois.
 
 	Uso:
 		local MapBuilder = require(script.MapBuilder)
@@ -17,6 +18,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.EventConfig)
 
 local MapBuilder = {}
+
+-- Cor da "zona" do segmento i (cicla a paleta se houver mais segmentos).
+local function zoneColor(i: number): Color3
+	local palette = Config.Palette
+	return palette[((i - 1) % #palette) + 1]
+end
 
 --[[
 	Constrói (ou reconstrói) o mapa.
@@ -56,7 +63,11 @@ function MapBuilder.Build(): Model
 			origin.Y - f.Thickness / 2,
 			segmentStartZ + f.SegmentLength / 2
 		)
-		segment.Color = f.Color
+		-- Cor da zona em tom pastel (mais claro), pra largada verde e a
+		-- chegada xadrez continuarem bem visíveis em cima do chão.
+		segment.Color = if f.UsePalette
+			then zoneColor(i):Lerp(Color3.new(1, 1, 1), 0.5)
+			else f.Color
 		segment.Material = f.Material
 		segment.TopSurface = topSurface
 		segment.BottomSurface = Enum.SurfaceType.Smooth
@@ -64,6 +75,110 @@ function MapBuilder.Build(): Model
 
 		if i == 1 then
 			firstSegment = segment
+		end
+	end
+
+	-- ── Paredes laterais (segmentadas) ─────────────────────────────────
+	-- Uma parede por segmento, em cada lado, rentes à borda do chão.
+	if Config.Walls.Enabled then
+		local w = Config.Walls
+		local folder = Instance.new("Folder")
+		folder.Name = "Walls"
+		folder.Parent = model
+
+		local wallOffsetX = f.Width / 2 + w.Thickness / 2
+		local wallCenterY = origin.Y + w.Height / 2
+
+		local sides = {
+			{ name = "Left", x = origin.X - wallOffsetX },
+			{ name = "Right", x = origin.X + wallOffsetX },
+		}
+
+		for _, side in sides do
+			for i = 1, f.SegmentCount do
+				local segmentStartZ = origin.Z + (i - 1) * f.SegmentLength
+				local wall = Instance.new("Part")
+				wall.Name = string.format("Wall%s_%d", side.name, i)
+				wall.Anchored = true
+				wall.Locked = true
+				wall.Size = Vector3.new(w.Thickness, w.Height, f.SegmentLength)
+				wall.Position =
+					Vector3.new(side.x, wallCenterY, segmentStartZ + f.SegmentLength / 2)
+				wall.Color = if w.UsePalette then zoneColor(i) else w.Color
+				wall.Material = w.Material
+				wall.TopSurface = Enum.SurfaceType.Smooth
+				wall.BottomSurface = Enum.SurfaceType.Smooth
+				wall.Parent = folder
+			end
+		end
+
+		-- Tampas das pontas (início e fim). Largura cobre também a espessura
+		-- das paredes laterais, fechando os cantos.
+		local capWidth = f.Width + w.Thickness * 2
+		local totalLength = Config.GetTotalLength()
+
+		local caps = {}
+		if w.StartCap then
+			table.insert(caps, {
+				name = "WallStart",
+				z = origin.Z - w.Thickness / 2,
+				color = if w.UsePalette then zoneColor(1) else w.Color,
+			})
+		end
+		if w.FinishCap then
+			table.insert(caps, {
+				name = "WallFinish",
+				z = origin.Z + totalLength + w.Thickness / 2,
+				color = if w.UsePalette then zoneColor(f.SegmentCount) else w.Color,
+			})
+		end
+
+		for _, cap in caps do
+			local wall = Instance.new("Part")
+			wall.Name = cap.name
+			wall.Anchored = true
+			wall.Locked = true
+			wall.Size = Vector3.new(capWidth, w.Height, w.Thickness)
+			wall.Position = Vector3.new(origin.X, wallCenterY, cap.z)
+			wall.Color = cap.color
+			wall.Material = w.Material
+			wall.TopSurface = Enum.SurfaceType.Smooth
+			wall.BottomSurface = Enum.SurfaceType.Smooth
+			wall.Parent = folder
+		end
+	end
+
+	-- ── Teto (segmentado) ──────────────────────────────────────────────
+	-- Apoiado em cima das paredes; cobre a largura inteira (com a espessura
+	-- das paredes) pra fechar certinho com elas.
+	if Config.Ceiling.Enabled then
+		local ce = Config.Ceiling
+		local wallThickness = Config.Walls.Thickness
+		local wallHeight = Config.Walls.Height
+
+		local folder = Instance.new("Folder")
+		folder.Name = "Ceiling"
+		folder.Parent = model
+
+		local ceilingWidth = f.Width + wallThickness * 2
+		local ceilingY = origin.Y + wallHeight + ce.Thickness / 2
+
+		for i = 1, f.SegmentCount do
+			local segmentStartZ = origin.Z + (i - 1) * f.SegmentLength
+			local part = Instance.new("Part")
+			part.Name = "Ceiling_" .. i
+			part.Anchored = true
+			part.Locked = true
+			part.Size = Vector3.new(ceilingWidth, ce.Thickness, f.SegmentLength)
+			part.Position =
+				Vector3.new(origin.X, ceilingY, segmentStartZ + f.SegmentLength / 2)
+			part.Color = ce.Color
+			part.Material = ce.Material
+			part.Transparency = ce.Transparency
+			part.CastShadow = false -- mantém o corredor iluminado
+			part.TopSurface = Enum.SurfaceType.Smooth
+			part.BottomSurface = Enum.SurfaceType.Smooth
+			part.Parent = folder
 		end
 	end
 
@@ -132,25 +247,37 @@ function MapBuilder.Build(): Model
 		end
 	end
 
-	-- ── Spawn (largada) ────────────────────────────────────────────────
-	-- Fica no INÍCIO do corredor, centralizado na largura, em cima do chão.
+	-- ── Spawns (largada) ───────────────────────────────────────────────
+	-- Vários spawns invisíveis espalhados pela largura, em cima da faixa verde.
 	if Config.Spawn.Enabled then
 		local s = Config.Spawn
-		local spawn = Instance.new("SpawnLocation")
-		spawn.Name = "StartSpawn"
-		spawn.Anchored = true
-		spawn.Locked = true
-		spawn.Neutral = true
-		spawn.Duration = 0 -- sem ForceField ao nascer
-		spawn.Size = s.Size
-		-- Bottom do pad encostando no topo do chão (Origin.Y).
-		spawn.Position = Vector3.new(origin.X, origin.Y + s.Size.Y / 2, origin.Z + s.Inset)
-		spawn.Color = s.Color
-		spawn.Transparency = s.Transparency
-		spawn.Material = Enum.Material.SmoothPlastic
-		spawn.TopSurface = Enum.SurfaceType.Smooth
-		spawn.BottomSurface = Enum.SurfaceType.Smooth
-		spawn.Parent = model
+		local folder = Instance.new("Folder")
+		folder.Name = "Spawns"
+		folder.Parent = model
+
+		local usableWidth = f.Width - s.Margin * 2
+		local spawnZ = origin.Z + s.ZOffset
+		local spawnY = origin.Y + s.Size.Y / 2
+
+		for i = 1, s.Count do
+			-- Distribui igualmente ao longo da largura.
+			local t = if s.Count == 1 then 0.5 else (i - 1) / (s.Count - 1)
+			local x = origin.X - usableWidth / 2 + t * usableWidth
+
+			local spawn = Instance.new("SpawnLocation")
+			spawn.Name = "Spawn_" .. i
+			spawn.Anchored = true
+			spawn.Locked = true
+			spawn.Neutral = true
+			spawn.Duration = 0 -- sem ForceField ao nascer
+			spawn.CanCollide = false -- invisível e sem degrau
+			spawn.Transparency = s.Transparency
+			spawn.Size = s.Size
+			spawn.Position = Vector3.new(x, spawnY, spawnZ)
+			spawn.TopSurface = Enum.SurfaceType.Smooth
+			spawn.BottomSurface = Enum.SurfaceType.Smooth
+			spawn.Parent = folder
+		end
 	end
 
 	model.PrimaryPart = firstSegment
