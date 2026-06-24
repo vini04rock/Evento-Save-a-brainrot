@@ -3,11 +3,14 @@
 	-----------
 	Máquina de estados da corrida (autoritativa, no servidor):
 
-	  Esperando -> Contagem -> Correndo -> Resultado -> Volta
+	  Esperando -> Contagem -> Correndo -> (cada finalista volta) -> tempo esgota -> resto volta
 
-	Modelo SESSÃO ÚNICA: roda uma corrida e teleporta todo mundo de volta.
-	Detecção de chegada: compara a posição Z do jogador com a entrada da
-	faixa de chegada (usa EventConfig.GetTotalLength()).
+	Modelo SESSÃO ÚNICA (servidor reservado): roda UMA corrida.
+	- Velocidade de cada corredor = a do jogo principal (via TeleportData) — ver RacerState.
+	- Power-ups e armadilhas aleatórios pela pista — ver TrackElements.
+	- Top 3 a chegar ganham prêmio (PrizeService).
+	- Quem chega é teleportado de volta logo após (individual); no fim do tempo (5 min),
+	  quem sobrou é teleportado em grupo.
 ]]
 
 local Players = game:GetService("Players")
@@ -19,38 +22,36 @@ local Config = require(ReplicatedStorage.Shared.EventConfig)
 local RaceConfig = require(ReplicatedStorage.Shared.RaceConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local PrizeService = require(script.Parent.PrizeService)
+local RacerState = require(script.Parent.RacerState)
+local TrackElements = require(script.Parent.TrackElements)
 
 local RaceManager = {}
+
+-- Lê a velocidade do player a partir do TeleportData do teleporte (mapa userId -> WalkSpeed).
+local function getPlayerRaceSpeed(player: Player): number
+	local ok, joinData = pcall(function()
+		return player:GetJoinData()
+	end)
+	if ok and typeof(joinData) == "table" then
+		local teleportData = (joinData :: any).TeleportData
+		if typeof(teleportData) == "table" and typeof(teleportData.Speeds) == "table" then
+			local speed = tonumber(teleportData.Speeds[tostring(player.UserId)])
+			if speed and speed > 0 then
+				return speed
+			end
+		end
+	end
+	return RaceConfig.RaceWalkSpeed -- fallback (Studio / entrou sem teleporte)
+end
 
 -- Z a partir do qual se considera "chegou" (entrada da faixa xadrez).
 local function getFinishZ(): number
 	return Config.Origin.Z + Config.GetTotalLength() - Config.FinishLine.Length
 end
 
-local function getHumanoid(player: Player): Humanoid?
-	local char = player.Character
-	return char and char:FindFirstChildOfClass("Humanoid") or nil
-end
-
 local function getRoot(player: Player): BasePart?
 	local char = player.Character
 	return char and char:FindFirstChild("HumanoidRootPart") or nil
-end
-
-local function setFrozen(player: Player, frozen: boolean)
-	local hum = getHumanoid(player)
-	if not hum then
-		return
-	end
-	if frozen then
-		hum.WalkSpeed = 0
-		hum.JumpHeight = 0
-		hum.JumpPower = 0
-	else
-		hum.WalkSpeed = RaceConfig.RaceWalkSpeed
-		hum.JumpHeight = 7.2
-		hum.JumpPower = 50
-	end
 end
 
 -- Coloca cada jogador num spawn da largada (espalha nos pads existentes).
@@ -91,7 +92,7 @@ end
 
 local function runCountdown(racers: { Player })
 	for _, player in racers do
-		setFrozen(player, true)
+		RacerState.SetFrozen(player, true)
 	end
 	for n = RaceConfig.CountdownSeconds, 1, -1 do
 		Remotes.RaceState:FireAllClients({ phase = "countdown", n = n })
@@ -99,11 +100,42 @@ local function runCountdown(racers: { Player })
 	end
 	Remotes.RaceState:FireAllClients({ phase = "go" })
 	for _, player in racers do
-		setFrozen(player, false)
+		RacerState.SetFrozen(player, false)
 	end
 end
 
--- Roda a corrida e devolve o ranking de chegada (lista ordenada).
+-- Teleporta UM player de volta pro lobby (no Studio / sem MainPlaceId, pula).
+local function returnPlayer(player: Player)
+	if not player or not player.Parent then
+		return
+	end
+	if RaceConfig.MainPlaceId <= 0 or RunService:IsStudio() then
+		return
+	end
+	pcall(function()
+		TeleportService:TeleportAsync(RaceConfig.MainPlaceId, { player })
+	end)
+end
+
+-- Teleporta um grupo de volta (quem sobrou no fim do tempo).
+local function returnGroup(players: { Player })
+	if #players == 0 then
+		return
+	end
+	if RaceConfig.MainPlaceId <= 0 or RunService:IsStudio() then
+		warn("[Evento] MainPlaceId não configurado ou rodando no Studio — teleporte de volta pulado.")
+		return
+	end
+	local ok, err = pcall(function()
+		TeleportService:TeleportAsync(RaceConfig.MainPlaceId, players)
+	end)
+	if not ok then
+		warn("[Evento] Falha ao teleportar de volta:", err)
+	end
+end
+
+-- Corrida: detecta chegada, premia top 3 e teleporta CADA finalista de volta logo após.
+-- Quem não terminar até o tempo limite (5 min) volta em grupo.
 local function runRace(racers: { Player })
 	local finishZ = getFinishZ()
 	local racing: { [Player]: boolean } = {}
@@ -111,7 +143,7 @@ local function runRace(racers: { Player })
 		racing[player] = true
 	end
 
-	local standings = {} -- { { player, name, place, time }, ... }
+	local placeCount = 0
 	local finished: { [Player]: boolean } = {}
 	local startTime = os.clock()
 
@@ -124,30 +156,31 @@ local function runRace(racers: { Player })
 			local root = getRoot(player)
 			if root and root.Position.Z >= finishZ then
 				finished[player] = true
-				local place = #standings + 1
-				table.insert(standings, {
-					player = player,
-					name = player.Name,
-					place = place,
-					time = os.clock() - startTime,
-				})
+				placeCount += 1
+				local place = placeCount
+				local raceTime = os.clock() - startTime
 
 				local prize = RaceConfig.PrizeByPlace[place]
 				if prize then
 					PrizeService.Award(player, prize)
 				end
 
+				RacerState.SetFrozen(player, true) -- congela quem já chegou
 				Remotes.RaceState:FireClient(player, {
 					phase = "finished",
 					place = place,
-					time = os.clock() - startTime,
+					time = raceTime,
 				})
-				setFrozen(player, true) -- congela quem já chegou
+
+				-- Teleporta esse finalista de volta depois de um tempinho (vê o resultado dele).
+				task.delay(RaceConfig.FinishReturnDelaySeconds, function()
+					returnPlayer(player)
+				end)
 			end
 		end
 	end)
 
-	-- Espera todos chegarem ou estourar o tempo limite.
+	-- Espera todos chegarem OU estourar o tempo limite (5 min).
 	while os.clock() - startTime < RaceConfig.RaceTimeLimitSeconds do
 		local allDone = true
 		for player in racing do
@@ -161,33 +194,19 @@ local function runRace(racers: { Player })
 		end
 		task.wait(0.2)
 	end
-
 	connection:Disconnect()
-	return standings
-end
 
-local function returnAll()
-	local players = Players:GetPlayers()
-	if #players == 0 then
-		return
+	-- Tempo esgotou (ou todos terminaram): manda de volta quem ainda está aqui e NÃO terminou.
+	local stragglers = {}
+	for _, player in Players:GetPlayers() do
+		if not finished[player] then
+			table.insert(stragglers, player)
+		end
 	end
-
-	Remotes.RaceState:FireAllClients({ phase = "returning" })
-	task.wait(1)
-
-	if RaceConfig.MainPlaceId <= 0 or RunService:IsStudio() then
-		warn(
-			"[Evento] MainPlaceId não configurado ou rodando no Studio — "
-				.. "teleporte de volta pulado."
-		)
-		return
-	end
-
-	local ok, err = pcall(function()
-		TeleportService:TeleportAsync(RaceConfig.MainPlaceId, players)
-	end)
-	if not ok then
-		warn("[Evento] Falha ao teleportar de volta:", err)
+	if #stragglers > 0 then
+		Remotes.RaceState:FireAllClients({ phase = "returning" })
+		task.wait(1)
+		returnGroup(stragglers)
 	end
 end
 
@@ -195,31 +214,29 @@ local function runSession()
 	-- 1. Espera o pessoal
 	waitForPlayers()
 
-	-- 2. Quem está presente agora é quem corre
+	-- 2. Quem está presente corre. Captura a velocidade-base de cada um (do TeleportData).
 	local racers = Players:GetPlayers()
+	RacerState.ClearAll()
+	for _, player in racers do
+		RacerState.Init(player, getPlayerRaceSpeed(player))
+	end
+
+	-- 3. Layout aleatório de power-ups/armadilhas (novo a cada corrida).
+	TrackElements.Generate()
+
+	-- 4. Largada
 	moveToStart(racers)
 	task.wait(0.5)
 
-	-- 3. Contagem
+	-- 5. Contagem
 	runCountdown(racers)
 
-	-- 4. Corrida
-	local standings = runRace(racers)
+	-- 6. Corrida (com retorno individual ao chegar + retorno em grupo no fim do tempo)
+	runRace(racers)
 
-	-- 5. Resultado (envia versão "limpa", sem o objeto Player)
-	local resultData = {}
-	for _, entry in standings do
-		table.insert(resultData, {
-			name = entry.name,
-			place = entry.place,
-			time = entry.time,
-		})
-	end
-	Remotes.RaceState:FireAllClients({ phase = "results", standings = resultData })
-	task.wait(RaceConfig.ResultsSeconds)
-
-	-- 6. Volta pro jogo principal
-	returnAll()
+	-- 7. Limpeza
+	TrackElements.Clear()
+	RacerState.ClearAll()
 end
 
 function RaceManager.Start()

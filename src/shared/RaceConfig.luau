@@ -18,19 +18,66 @@ RaceConfig.WaitForPlayersSeconds = 5
 -- Contagem regressiva antes da largada (3, 2, 1, JÁ!).
 RaceConfig.CountdownSeconds = 3
 
--- Velocidade de caminhada durante a corrida (padrão do Roblox é 16).
--- Mais alto = corrida mais rápida e divertida (e testável num corredor longo).
+-- FALLBACK de velocidade. A corrida usa a velocidade que o player tem no jogo principal
+-- (enviada pelo lobby via TeleportData). Este valor só é usado quando não há essa info
+-- (ex.: testando no Studio, ou jogador que entrou sem passar pelo teleporte do evento).
 RaceConfig.RaceWalkSpeed = 60
 
--- Tempo máximo da corrida (se alguém não chegar, encerra mesmo assim).
-RaceConfig.RaceTimeLimitSeconds = 180
+-- Tempo máximo da corrida (5 min). Quem não terminar até lá é teleportado de volta.
+RaceConfig.RaceTimeLimitSeconds = 300
 
--- Quanto tempo mostra o resultado antes de teleportar de volta.
+-- Quanto tempo o finalista vê o resultado dele antes de ser teleportado de volta (individual).
+RaceConfig.FinishReturnDelaySeconds = 4
+
+-- Quanto tempo mostra o resultado antes de teleportar de volta (não usado no modelo individual).
 RaceConfig.ResultsSeconds = 8
 
--- >>> PREENCHA com o PlaceId do seu JOGO PRINCIPAL (pra onde os players voltam).
--- Enquanto for 0 (ou rodando no Studio), o teleporte de volta é pulado. <<<
-RaceConfig.MainPlaceId = 0
+-- ── Power-ups e armadilhas espalhados pela pista ──────────────────────────────
+-- RandomLayout = true: cada corrida sorteia posições novas (layout único por sessão).
+RaceConfig.Elements = {
+	RandomLayout = true,
+	SafeStartStuds = 300, -- não coloca nada nos primeiros N studs (depois da largada)
+	SafeFinishStuds = 300, -- nem nos últimos N studs (antes da chegada)
+	LaneMargin = 70, -- folga das paredes ao posicionar no eixo X
+
+	-- 🟢 Bônus: chão verde. +50% de velocidade por 3s. SÓ pro PRIMEIRO que pisar (consome).
+	SpeedBoost = {
+		Count = 6,
+		Multiplier = 1.5,
+		Duration = 3,
+		Color = Color3.fromRGB(60, 230, 110),
+		Size = Vector3.new(20, 1, 20),
+	},
+	-- 🔵 Jump pad: chão azul. Empurra pra frente e pra cima (reutilizável).
+	JumpPad = {
+		Count = 5,
+		ForwardForce = 90,
+		UpForce = 95,
+		PlayerCooldown = 0.6, -- anti-spam por jogador
+		Color = Color3.fromRGB(70, 150, 255),
+		Size = Vector3.new(20, 1, 20),
+	},
+	-- 🔴 Lentidão: chão vermelho. -50% de velocidade por 3s (reutilizável, com cooldown).
+	Slow = {
+		Count = 6,
+		Multiplier = 0.5,
+		Duration = 3,
+		PlayerCooldown = 1.5,
+		Color = Color3.fromRGB(235, 70, 70),
+		Size = Vector3.new(20, 1, 20),
+	},
+	-- 🟫 Muro baixo: o player tem que PULAR por cima (atravessa toda a largura).
+	Hurdle = {
+		Count = 6,
+		Height = 5, -- baixo o suficiente pra pular (JumpHeight da corrida = 7.2)
+		Thickness = 3,
+		Color = Color3.fromRGB(120, 90, 60),
+	},
+}
+
+-- PlaceId do JOGO PRINCIPAL / lobby (pra onde os players voltam no fim da corrida).
+-- "Save a Brainrot (BETA)" = 90667727140026 (mesmo experience: 9974657761).
+RaceConfig.MainPlaceId = 90667727140026
 
 -- Prêmio em moedas por colocação (índice = posição). Fora da lista, sem prêmio.
 RaceConfig.PrizeByPlace = { 100, 50, 25 }
