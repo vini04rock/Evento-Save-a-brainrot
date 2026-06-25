@@ -61,6 +61,10 @@ local Remotes = {
 	-- Efeito de velocidade (Servidor -> Cliente): mostra o "juice" do boost por N segundos.
 	-- Payload: (duration: number)
 	RaceBoostFx = getRemoteEvent(folder, "RaceBoostFx"),
+	-- Empurrão genérico (Servidor -> Cliente): o cliente aplica um impulso de velocidade.
+	-- Usado pelo rolo móvel (empurra pra trás) e pelo ventilador lateral (empurra pro lado).
+	-- Payload: (vx: number, vy: number, vz: number)  — componentes do impulso em studs/s.
+	RacePush = getRemoteEvent(folder, "RacePush"),
 }
 
 return Remotes

@@ -248,6 +248,105 @@ local function makeHurdle(width: number, cfg, position: Vector3, parent: Instanc
 	return w
 end
 
+-- 🟠 Rolo móvel: bloco que desliza de um lado pro outro (eixo X) atravessando a pista.
+-- Encostou = empurrão pra trás (-Z) + lentidão curta. Movimento via tween (vai e volta).
+local function makeRoller(cfg, z: number, halfWidth: number, centerX: number, floorTopY: number, parent: Instance, rng: Random)
+	local slideMin = centerX - (halfWidth - cfg.SlideMargin)
+	local slideMax = centerX + (halfWidth - cfg.SlideMargin)
+	local y = floorTopY + cfg.Size.Y / 2
+	local startLeft = rng:NextInteger(0, 1) == 0
+	local fromX = startLeft and slideMin or slideMax
+	local toX = startLeft and slideMax or slideMin
+
+	local roller = Instance.new("Part")
+	roller.Name = "Roller"
+	roller.Anchored = true
+	roller.CanCollide = false
+	roller.Size = cfg.Size
+	roller.Color = cfg.Color
+	roller.Material = Enum.Material.Neon
+	roller.Position = Vector3.new(fromX, y, z)
+	roller.TopSurface = Enum.SurfaceType.Smooth
+	roller.BottomSurface = Enum.SurfaceType.Smooth
+	roller.Parent = parent
+
+	local light = Instance.new("PointLight")
+	light.Color = cfg.Color
+	light.Brightness = 1.6
+	light.Range = 12
+	light.Shadows = false
+	light.Parent = roller
+
+	-- Desincroniza os rolos: tempo levemente diferente por unidade.
+	local slideTime = cfg.SlideTime * rng:NextNumber(0.85, 1.15)
+	TweenService:Create(
+		roller,
+		TweenInfo.new(slideTime, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Position = Vector3.new(toX, y, z) }
+	):Play()
+
+	local cooldown: { [Player]: number } = {}
+	roller.Touched:Connect(function(hit)
+		local player = playerFromHit(hit)
+		if not player or not RacerState.IsRacer(player) then
+			return
+		end
+		local now = os.clock()
+		if cooldown[player] and (now - cooldown[player]) < cfg.PlayerCooldown then
+			return
+		end
+		cooldown[player] = now
+		Remotes.RacePush:FireClient(player, 0, cfg.UpForce, -cfg.BackForce) -- empurra pra trás
+		RacerState.ApplyMultiplier(player, cfg.SlowMultiplier, cfg.SlowDuration)
+	end)
+	return roller
+end
+
+-- 💨 Ventilador lateral: pad no chão que sopra o player pro lado (dir = -1 ou +1 no eixo X).
+local function makeSideFan(cfg, position: Vector3, dir: number, parent: Instance): BasePart
+	local pad = makePad("SideFan", cfg.Size, cfg.Color, position, parent)
+
+	local light = Instance.new("PointLight")
+	light.Color = cfg.Color
+	light.Brightness = 1.2
+	light.Range = 10
+	light.Shadows = false
+	light.Parent = pad
+
+	-- "Vento" visível saindo pro lado (dica pro jogador).
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Texture = "rbxasset://textures/particles/smoke_main.dds"
+	emitter.Color = ColorSequence.new(cfg.Color, Color3.fromRGB(255, 255, 255))
+	emitter.LightEmission = 0.5
+	emitter.Lifetime = NumberRange.new(0.4, 0.7)
+	emitter.Rate = 18
+	emitter.Speed = NumberRange.new(12, 18)
+	emitter.Acceleration = Vector3.new(dir * 30, 0, 0)
+	emitter.EmissionDirection = (dir > 0) and Enum.NormalId.Right or Enum.NormalId.Left
+	emitter.SpreadAngle = Vector2.new(12, 12)
+	emitter.Size = NumberSequence.new(2)
+	emitter.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.35),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	emitter.Parent = pad
+
+	local cooldown: { [Player]: number } = {}
+	pad.Touched:Connect(function(hit)
+		local player = playerFromHit(hit)
+		if not player or not RacerState.IsRacer(player) then
+			return
+		end
+		local now = os.clock()
+		if cooldown[player] and (now - cooldown[player]) < cfg.PlayerCooldown then
+			return
+		end
+		cooldown[player] = now
+		Remotes.RacePush:FireClient(player, dir * cfg.SideForce, cfg.UpForce, 0) -- empurra pro lado
+	end)
+	return pad
+end
+
 -- Gera o layout (novo a cada chamada). Retorna a pasta criada.
 function TrackElements.Generate(): Folder
 	TrackElements.Clear()
@@ -278,6 +377,26 @@ function TrackElements.Generate(): Folder
 	for _ = 1, cfg.Hurdle.Count do
 		local z = rng:NextNumber(b.minZ, b.maxZ)
 		makeHurdle(hurdleWidth, cfg.Hurdle, Vector3.new(b.centerX, b.floorTopY + cfg.Hurdle.Height / 2, z), folder)
+	end
+
+	-- ⭐ Mega boost (raro): mesma placa flutuante do boost, dourada e mais forte.
+	for _ = 1, cfg.MegaBoost.Count do
+		local pos = Vector3.new(rng:NextNumber(b.minX, b.maxX), b.floorTopY + cfg.MegaBoost.FloatY, rng:NextNumber(b.minZ, b.maxZ))
+		wireBoost(makeBoostGate(cfg.MegaBoost, pos, folder), cfg.MegaBoost)
+	end
+
+	-- 🟠 Rolo móvel: desliza no eixo X atravessando a pista.
+	local halfWidth = EventConfig.Floor.Width / 2
+	for _ = 1, cfg.Roller.Count do
+		local z = rng:NextNumber(b.minZ, b.maxZ)
+		makeRoller(cfg.Roller, z, halfWidth, b.centerX, b.floorTopY, folder, rng)
+	end
+
+	-- 💨 Ventilador lateral: empurra pro lado (direção sorteada por unidade).
+	for _ = 1, cfg.SideFan.Count do
+		local pos = randomPadPos(cfg.SideFan.Size)
+		local dir = (rng:NextInteger(0, 1) == 0) and -1 or 1
+		makeSideFan(cfg.SideFan, pos, dir, folder)
 	end
 
 	return folder

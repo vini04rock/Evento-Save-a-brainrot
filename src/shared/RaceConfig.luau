@@ -76,6 +76,41 @@ RaceConfig.Elements = {
 		Thickness = 3,
 		Color = Color3.fromRGB(120, 90, 60),
 	},
+	-- ⭐ Mega boost (raro): placa dourada com +100% por 4s (mais forte que a verde).
+	-- Usa a MESMA placa flutuante do SpeedBoost (1º que pega consome).
+	MegaBoost = {
+		Count = 4,
+		Multiplier = 2.0,
+		Duration = 4,
+		Color = Color3.fromRGB(255, 205, 50),
+		Size = Vector3.new(16, 9, 0.6),
+		FloatY = 6,
+		Symbol = "⭐",
+	},
+	-- 🟠 Rolo móvel: bloco que desliza de um lado pro outro (eixo X) atravessando a pista.
+	-- Encostou = empurrão pra trás (-Z) + lentidão curta. Exige timing pra desviar.
+	Roller = {
+		Count = 8,
+		Size = Vector3.new(10, 11, 6), -- larguraX x alturaY x profundidadeZ
+		SlideMargin = 8, -- folga das paredes no trajeto lateral
+		SlideTime = 1.6, -- tempo de um lado ao outro (vai e volta)
+		BackForce = 70, -- empurrão pra trás ao encostar (studs/s)
+		UpForce = 18, -- pulinho junto (tira do chão)
+		SlowMultiplier = 0.6, -- -40% por um tiquinho
+		SlowDuration = 1.2,
+		PlayerCooldown = 1.0,
+		Color = Color3.fromRGB(255, 120, 40),
+	},
+	-- 💨 Ventilador lateral: pad no chão que SOPRA o player pro lado (em direção à parede).
+	-- Direção sorteada por ventilador. Usa o empurrão no cliente (RacePush), como o jump pad.
+	SideFan = {
+		Count = 10,
+		Size = Vector3.new(10, 1, 10),
+		SideForce = 80, -- empurrão lateral (studs/s)
+		UpForce = 8, -- só pra "destacar" do chão e o empurrão pegar
+		PlayerCooldown = 0.8,
+		Color = Color3.fromRGB(150, 220, 255),
+	},
 }
 
 -- PlaceId do JOGO PRINCIPAL / lobby (pra onde os players voltam no fim da corrida).

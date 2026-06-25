@@ -318,6 +318,18 @@ Remotes.RaceBoostFx.OnClientEvent:Connect(function(duration)
 	fovPunch(14, tonumber(duration) or 3, 0.4)
 end)
 
+-- Empurrão genérico: o servidor manda e o CLIENTE aplica o impulso (posse física do char é dele).
+-- Usado pelo rolo móvel (pra trás) e pelo ventilador lateral (pro lado). É ADITIVO ao movimento atual.
+Remotes.RacePush.OnClientEvent:Connect(function(vx, vy, vz)
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		root.AssemblyLinearVelocity = root.AssemblyLinearVelocity
+			+ Vector3.new(tonumber(vx) or 0, tonumber(vy) or 0, tonumber(vz) or 0)
+		fovPunch(6, 0.12, 0.22) -- leve kick de câmera no impacto
+	end
+end)
+
 -- ── Placar de posições AO VIVO (direita da tela) ───────────────────────
 local rankMedals = { [1] = "🥇", [2] = "🥈", [3] = "🥉" }
 
