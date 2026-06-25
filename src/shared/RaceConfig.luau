@@ -91,7 +91,7 @@ RaceConfig.Elements = {
 	-- Encostou = empurrão pra trás (-Z) + lentidão curta. Exige timing pra desviar.
 	Roller = {
 		Count = 8,
-		Size = Vector3.new(25, 27.5, 15), -- 250% do tamanho anterior (10,11,6) → mais imponente
+		Size = Vector3.new(87.5, 13.75, 52.5), -- largo e baixo: Y na metade, X e Z +250% (×3.5)
 		SlideMargin = 8, -- folga das paredes no trajeto lateral
 		SlideTime = 5.33, -- 30% da velocidade anterior (era 1.6 → tempo ÷ 0.3 = mais lento)
 		BackForce = 70, -- empurrão pra trás ao encostar (studs/s)
