@@ -91,7 +91,7 @@ RaceConfig.Elements = {
 	-- Encostou = empurrão pra trás (-Z) + lentidão curta. Exige timing pra desviar.
 	Roller = {
 		Count = 8,
-		Size = Vector3.new(87.5, 13.75, 52.5), -- largo e baixo: Y na metade, X e Z +250% (×3.5)
+		Size = Vector3.new(55, 13, 90), -- largo (X) e comprido (Z), baixinho (Y)
 		SlideMargin = 8, -- folga das paredes no trajeto lateral
 		SlideTime = 5.33, -- 30% da velocidade anterior (era 1.6 → tempo ÷ 0.3 = mais lento)
 		BackForce = 70, -- empurrão pra trás ao encostar (studs/s)
@@ -106,7 +106,7 @@ RaceConfig.Elements = {
 	SideFan = {
 		Count = 10,
 		Size = Vector3.new(10, 1, 10),
-		SideForce = 120, -- empurrão lateral (studs/s) — +50% (era 80)
+		SideForce = 216, -- empurrão lateral (studs/s) — +80% (era 120)
 		UpForce = 8, -- só pra "destacar" do chão e o empurrão pegar
 		PlayerCooldown = 0.8,
 		Color = Color3.fromRGB(150, 220, 255),
