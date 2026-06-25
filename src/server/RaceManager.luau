@@ -24,6 +24,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local PrizeService = require(script.Parent.PrizeService)
 local RacerState = require(script.Parent.RacerState)
 local TrackElements = require(script.Parent.TrackElements)
+local RaceRecords = require(script.Parent.RaceRecords)
 
 local RaceManager = {}
 
@@ -160,13 +161,10 @@ local function runRace(racers: { Player })
 				placeCount += 1
 				local place = placeCount
 				local raceTime = os.clock() - startTime
-				table.insert(finishOrder, { userId = player.UserId, name = player.Name, place = place })
+				local userId, playerName = player.UserId, player.Name
+				table.insert(finishOrder, { userId = userId, name = playerName, place = place })
 
-				-- Grava o prêmio pendente (top 3 = pacote+braincoins; demais = consolação em Yen).
-				-- O lobby mostra a janela e entrega quando o player fecha (ver RaceRewardGrantService).
-				PrizeService.AwardPlace(player, place, raceTime)
 				local reward = PrizeService.ResolveReward(place)
-
 				RacerState.SetFrozen(player, true) -- congela quem já chegou
 				Remotes.RaceState:FireClient(player, {
 					phase = "finished",
@@ -178,6 +176,12 @@ local function runRace(racers: { Player })
 				-- Teleporta esse finalista de volta depois de um tempinho (vê o resultado dele).
 				task.delay(RaceConfig.FinishReturnDelaySeconds, function()
 					returnPlayer(player)
+				end)
+
+				-- Recorde (pessoal + global) + prêmio pendente — async, fora do Heartbeat (DataStore yield).
+				task.spawn(function()
+					local isNewRecord, bestTime = RaceRecords.Record(userId, playerName, raceTime)
+					PrizeService.AwardPlace(player, place, raceTime, isNewRecord, bestTime)
 				end)
 			end
 		end
@@ -277,6 +281,7 @@ end
 
 function RaceManager.Start()
 	PrizeService.Setup()
+	RaceRecords.Setup()
 	task.spawn(runSession)
 end
 
