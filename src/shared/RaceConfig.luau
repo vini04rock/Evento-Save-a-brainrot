@@ -42,7 +42,7 @@ RaceConfig.Elements = {
 
 	-- 🟢 Bônus: chão verde. +50% de velocidade por 3s. SÓ pro PRIMEIRO que pisar (consome).
 	SpeedBoost = {
-		Count = 6,
+		Count = 16,
 		Multiplier = 1.5,
 		Duration = 3,
 		Color = Color3.fromRGB(60, 230, 110),
@@ -50,16 +50,16 @@ RaceConfig.Elements = {
 	},
 	-- 🔵 Jump pad: chão azul. Empurra pra frente e pra cima (reutilizável).
 	JumpPad = {
-		Count = 5,
-		ForwardForce = 90,
-		UpForce = 95,
+		Count = 14,
+		ForwardForce = 110,
+		UpForce = 80,
 		PlayerCooldown = 0.6, -- anti-spam por jogador
 		Color = Color3.fromRGB(70, 150, 255),
 		Size = Vector3.new(20, 1, 20),
 	},
 	-- 🔴 Lentidão: chão vermelho. -50% de velocidade por 3s (reutilizável, com cooldown).
 	Slow = {
-		Count = 6,
+		Count = 16,
 		Multiplier = 0.5,
 		Duration = 3,
 		PlayerCooldown = 1.5,
@@ -68,7 +68,7 @@ RaceConfig.Elements = {
 	},
 	-- 🟫 Muro baixo: o player tem que PULAR por cima (atravessa toda a largura).
 	Hurdle = {
-		Count = 6,
+		Count = 12,
 		Height = 5, -- baixo o suficiente pra pular (JumpHeight da corrida = 7.2)
 		Thickness = 3,
 		Color = Color3.fromRGB(120, 90, 60),

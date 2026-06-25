@@ -51,6 +51,10 @@ local folder = getFolder()
 
 local Remotes = {
 	RaceState = getRemoteEvent(folder, "RaceState"),
+	-- Jump pad: servidor manda o cliente se impulsionar (cliente tem a posse física do char,
+	-- então setar velocidade no servidor não funciona de forma confiável).
+	-- Payload: (forwardForce: number, upForce: number)
+	RaceJumpPad = getRemoteEvent(folder, "RaceJumpPad"),
 }
 
 return Remotes

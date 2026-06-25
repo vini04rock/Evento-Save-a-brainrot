@@ -44,7 +44,8 @@ function PrizeService.ResolveReward(place: number): { Pack: string?, Braincoins:
 end
 
 -- Grava o prêmio da colocação como pendente (acumula com o que já houver).
-function PrizeService.AwardPlace(player: Player, place: number)
+-- raceTime/place também ficam salvos pra a janela de resultados no lobby (último valor vence).
+function PrizeService.AwardPlace(player: Player, place: number, raceTime: number?)
 	if not store then
 		return
 	end
@@ -65,6 +66,8 @@ function PrizeService.AwardPlace(player: Player, place: number)
 			end
 			data.Braincoins += reward.Braincoins
 			data.Yen += reward.Yen
+			data.Place = place
+			data.Time = tonumber(raceTime) or data.Time or 0
 			return data
 		end)
 	end)

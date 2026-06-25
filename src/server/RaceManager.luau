@@ -160,9 +160,9 @@ local function runRace(racers: { Player })
 				local place = placeCount
 				local raceTime = os.clock() - startTime
 
-				-- Grava o prêmio pendente (top 3 = pacote+braincoins; demais = consolação).
-				-- O lobby entrega quando o player volta.
-				PrizeService.AwardPlace(player, place)
+				-- Grava o prêmio pendente (top 3 = pacote+braincoins; demais = consolação em Yen).
+				-- O lobby mostra a janela e entrega quando o player fecha (ver RaceRewardGrantService).
+				PrizeService.AwardPlace(player, place, raceTime)
 				local reward = PrizeService.ResolveReward(place)
 
 				RacerState.SetFrozen(player, true) -- congela quem já chegou

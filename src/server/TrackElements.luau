@@ -18,6 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local EventConfig = require(ReplicatedStorage.Shared.EventConfig)
 local RaceConfig = require(ReplicatedStorage.Shared.RaceConfig)
+local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RacerState = require(script.Parent.RacerState)
 
 local TrackElements = {}
@@ -96,11 +97,9 @@ local function wireJumpPad(pad: BasePart, cfg)
 			return
 		end
 		cooldown[player] = now
-		local char = hit.Parent
-		local root = char and char:FindFirstChild("HumanoidRootPart")
-		if root and root:IsA("BasePart") then
-			root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, cfg.UpForce, cfg.ForwardForce)
-		end
+		-- O CLIENTE aplica a velocidade (a posse física do personagem é dele; setar no
+		-- servidor não impulsiona de forma confiável). Manda força pra frente (+Z) e pra cima.
+		Remotes.RaceJumpPad:FireClient(player, cfg.ForwardForce, cfg.UpForce)
 	end)
 end
 

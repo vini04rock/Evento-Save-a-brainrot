@@ -212,3 +212,14 @@ local function onState(payload)
 end
 
 Remotes.RaceState.OnClientEvent:Connect(onState)
+
+-- Jump pad: o servidor manda; o CLIENTE se impulsiona (a posse física do char é dele,
+-- então é aqui que a velocidade "pega"). Força pra cima (sai do chão) + pra frente (+Z).
+Remotes.RaceJumpPad.OnClientEvent:Connect(function(forwardForce, upForce)
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		local vx = root.AssemblyLinearVelocity.X
+		root.AssemblyLinearVelocity = Vector3.new(vx, tonumber(upForce) or 80, tonumber(forwardForce) or 110)
+	end
+end)
