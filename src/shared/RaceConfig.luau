@@ -40,19 +40,22 @@ RaceConfig.Elements = {
 	SafeFinishStuds = 300, -- nem nos últimos N studs (antes da chegada)
 	LaneMargin = 70, -- folga das paredes ao posicionar no eixo X
 
-	-- 🟢 Bônus: chão verde. +50% de velocidade por 3s. SÓ pro PRIMEIRO que pisar (consome).
+	-- 🟢 Bônus: PLACA flutuante semitransparente com símbolo de velocidade (o player atravessa).
+	-- +50% de velocidade por 3s. SÓ pro PRIMEIRO que atravessar (consome/some).
 	SpeedBoost = {
 		Count = 16,
 		Multiplier = 1.5,
 		Duration = 3,
 		Color = Color3.fromRGB(60, 230, 110),
-		Size = Vector3.new(20, 1, 20),
+		Size = Vector3.new(16, 9, 0.6), -- largura(X) x altura(Y) x espessura(Z, fina)
+		FloatY = 6, -- centro da placa acima do chão (flutua na altura do player)
+		Symbol = ">>", -- símbolo de velocidade mostrado na placa
 	},
 	-- 🔵 Jump pad: chão azul. Empurra pra frente e pra cima (reutilizável).
 	JumpPad = {
 		Count = 14,
-		ForwardForce = 110,
-		UpForce = 80,
+		ForwardForce = 330, -- +200% (era 110)
+		UpForce = 240, -- +200% (era 80)
 		PlayerCooldown = 0.6, -- anti-spam por jogador
 		Color = Color3.fromRGB(70, 150, 255),
 		Size = Vector3.new(20, 1, 20),

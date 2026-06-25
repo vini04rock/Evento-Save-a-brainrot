@@ -15,6 +15,8 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
 
 local EventConfig = require(ReplicatedStorage.Shared.EventConfig)
 local RaceConfig = require(ReplicatedStorage.Shared.RaceConfig)
@@ -65,10 +67,53 @@ local function makePad(name: string, size: Vector3, color: Color3, position: Vec
 	return p
 end
 
--- 🟢 Boost: aplica o multiplicador SÓ pro primeiro corredor que pisar (consome o pad).
-local function wireBoost(pad: BasePart, cfg)
+-- 🟢 Boost: PLACA flutuante semitransparente com símbolo de velocidade (o player atravessa).
+-- Flutua na altura do player (bob suave) e mostra o símbolo nas duas faces.
+local function makeBoostGate(cfg, position: Vector3, parent: Instance): BasePart
+	local panel = Instance.new("Part")
+	panel.Name = "BoostGate"
+	panel.Anchored = true
+	panel.CanCollide = false
+	panel.Size = cfg.Size
+	panel.Color = cfg.Color
+	panel.Material = Enum.Material.Neon
+	panel.Transparency = 0.55
+	panel.CastShadow = false
+	panel.Position = position
+	panel.Parent = parent
+
+	for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = face
+		gui.LightInfluence = 0
+		gui.Parent = panel
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.fromScale(1, 1)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.FredokaOne
+		label.Text = tostring(cfg.Symbol or ">>")
+		label.TextScaled = true
+		label.TextColor3 = Color3.fromRGB(255, 255, 255)
+		label.TextStrokeColor3 = Color3.fromRGB(20, 70, 30)
+		label.TextStrokeTransparency = 0.2
+		label.Parent = gui
+	end
+
+	-- Bob flutuante (sobe/desce de leve).
+	panel.Position = position + Vector3.new(0, 0.8, 0)
+	TweenService:Create(
+		panel,
+		TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Position = position - Vector3.new(0, 0.8, 0) }
+	):Play()
+
+	return panel
+end
+
+-- Aplica o boost SÓ pro primeiro corredor que atravessar (a placa some — foi coletada).
+local function wireBoost(gate: BasePart, cfg)
 	local used = false
-	pad.Touched:Connect(function(hit)
+	gate.Touched:Connect(function(hit)
 		if used then
 			return
 		end
@@ -78,9 +123,14 @@ local function wireBoost(pad: BasePart, cfg)
 		end
 		used = true
 		RacerState.ApplyMultiplier(player, cfg.Multiplier, cfg.Duration)
-		pad.CanTouch = false
-		pad.Transparency = 0.7
-		pad.Material = Enum.Material.SmoothPlastic
+		gate.CanTouch = false
+		for _, gui in ipairs(gate:GetChildren()) do
+			if gui:IsA("SurfaceGui") then
+				gui.Enabled = false
+			end
+		end
+		TweenService:Create(gate, TweenInfo.new(0.25), { Transparency = 1 }):Play()
+		Debris:AddItem(gate, 0.3)
 	end)
 end
 
@@ -150,7 +200,8 @@ function TrackElements.Generate(): Folder
 	end
 
 	for _ = 1, cfg.SpeedBoost.Count do
-		wireBoost(makePad("BoostPad", cfg.SpeedBoost.Size, cfg.SpeedBoost.Color, randomPadPos(cfg.SpeedBoost.Size), folder), cfg.SpeedBoost)
+		local pos = Vector3.new(rng:NextNumber(b.minX, b.maxX), b.floorTopY + cfg.SpeedBoost.FloatY, rng:NextNumber(b.minZ, b.maxZ))
+		wireBoost(makeBoostGate(cfg.SpeedBoost, pos, folder), cfg.SpeedBoost)
 	end
 	for _ = 1, cfg.JumpPad.Count do
 		wireJumpPad(makePad("JumpPad", cfg.JumpPad.Size, cfg.JumpPad.Color, randomPadPos(cfg.JumpPad.Size), folder), cfg.JumpPad)
