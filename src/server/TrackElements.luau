@@ -305,6 +305,62 @@ local function makeRoller(cfg, z: number, halfWidth: number, centerX: number, fl
 	return roller
 end
 
+-- 🏁 Arco de checkpoint: landmark visual que o player atravessa (não bloqueia).
+-- Mostra a % do percurso (combina com a barra de progresso do HUD).
+local function makeArch(z: number, halfWidth: number, floorTopY: number, label: string, parent: Instance)
+	local archColor = Color3.fromRGB(120, 200, 255)
+	local pillarH = 28
+	local pillarW = 4
+	local edgeX = halfWidth - 6
+	local y = floorTopY + pillarH / 2
+
+	local function pillar(x: number)
+		local p = Instance.new("Part")
+		p.Name = "ArchPillar"
+		p.Anchored = true
+		p.CanCollide = false
+		p.CastShadow = false
+		p.Size = Vector3.new(pillarW, pillarH, pillarW)
+		p.Color = archColor
+		p.Material = Enum.Material.Neon
+		p.Position = Vector3.new(x, y, z)
+		p.Parent = parent
+	end
+	pillar(-edgeX)
+	pillar(edgeX)
+
+	local beam = Instance.new("Part")
+	beam.Name = "ArchBeam"
+	beam.Anchored = true
+	beam.CanCollide = false
+	beam.CastShadow = false
+	beam.Size = Vector3.new(edgeX * 2 + pillarW, pillarW, pillarW * 1.4)
+	beam.Color = archColor
+	beam.Material = Enum.Material.Neon
+	beam.Position = Vector3.new(0, floorTopY + pillarH, z)
+	beam.Parent = parent
+
+	-- Placa flutuante com a % (sempre virada pra câmera).
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "ArchLabel"
+	bb.Size = UDim2.fromOffset(220, 90)
+	bb.StudsOffset = Vector3.new(0, 5, 0)
+	bb.AlwaysOnTop = false
+	bb.MaxDistance = 1200
+	bb.Adornee = beam
+	bb.Parent = beam
+	local txt = Instance.new("TextLabel")
+	txt.Size = UDim2.fromScale(1, 1)
+	txt.BackgroundTransparency = 1
+	txt.Font = Enum.Font.FredokaOne
+	txt.Text = label
+	txt.TextColor3 = Color3.fromRGB(255, 255, 255)
+	txt.TextStrokeColor3 = Color3.fromRGB(20, 60, 110)
+	txt.TextStrokeTransparency = 0.2
+	txt.TextScaled = true
+	txt.Parent = bb
+end
+
 -- 💨 Ventilador lateral: pad no chão que sopra o player pro lado (dir = -1 ou +1 no eixo X).
 local function makeSideFan(cfg, position: Vector3, dir: number, parent: Instance): BasePart
 	local pad = makePad("SideFan", cfg.Size, cfg.Color, position, parent)
@@ -400,6 +456,13 @@ function TrackElements.Generate(): Folder
 		local pos = randomPadPos(cfg.SideFan.Size)
 		local dir = (rng:NextInteger(0, 1) == 0) and -1 or 1
 		makeSideFan(cfg.SideFan, pos, dir, folder)
+	end
+
+	-- 🏁 Arcos de checkpoint (landmarks fixos em 25/50/75% — combinam com a barra de progresso).
+	local totalLen = EventConfig.GetTotalLength()
+	for _, frac in ipairs({ 0.25, 0.5, 0.75 }) do
+		local z = EventConfig.Origin.Z + totalLen * frac
+		makeArch(z, halfWidth, b.floorTopY, string.format("%d%%", math.floor(frac * 100)), folder)
 	end
 
 	return folder

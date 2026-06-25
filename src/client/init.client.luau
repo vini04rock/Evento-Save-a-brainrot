@@ -412,4 +412,139 @@ local function buildRanking(list)
 	end
 end
 
-Remotes.RaceLiveRanking.OnClientEvent:Connect(buildRanking)
+-- ── Toast de mudança de posição (centro, parte de cima) ─────────────────
+local posToast = Instance.new("TextLabel")
+posToast.Name = "PosToast"
+posToast.AnchorPoint = Vector2.new(0.5, 0.5)
+posToast.Position = UDim2.fromScale(0.5, 0.26)
+posToast.Size = UDim2.fromScale(0.5, 0.09)
+posToast.BackgroundTransparency = 1
+posToast.Font = Enum.Font.FredokaOne
+posToast.TextScaled = true
+posToast.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+posToast.TextStrokeTransparency = 0.4
+posToast.TextTransparency = 1
+posToast.Parent = gui
+local posToastConstraint = Instance.new("UITextSizeConstraint")
+posToastConstraint.MaxTextSize = 42
+posToastConstraint.MinTextSize = 18
+posToastConstraint.Parent = posToast
+
+local posToastToken = 0
+local function showPosToast(text, color)
+	posToastToken += 1
+	local myToken = posToastToken
+	posToast.Text = text
+	posToast.TextColor3 = color
+	posToast.TextTransparency = 1
+	posToast.Position = UDim2.fromScale(0.5, 0.30)
+	TweenService:Create(
+		posToast,
+		TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{ TextTransparency = 0, Position = UDim2.fromScale(0.5, 0.26) }
+	):Play()
+	task.delay(1.3, function()
+		if posToastToken ~= myToken then
+			return
+		end
+		TweenService:Create(posToast, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
+	end)
+end
+
+local lastLocalRank = nil
+local function updatePositionToast(list)
+	if type(list) ~= "table" then
+		return
+	end
+	local rank, finished
+	for i, entry in ipairs(list) do
+		if entry.userId == player.UserId then
+			rank = (entry.finished and entry.place) or i
+			finished = entry.finished
+			break
+		end
+	end
+	-- Sem o player na lista ou já terminou → zera a base (e não avisa).
+	if not rank or finished then
+		lastLocalRank = nil
+		return
+	end
+	if lastLocalRank and rank ~= lastLocalRank then
+		if rank < lastLocalRank then
+			showPosToast(string.format("▲ Subiu pra %dº!", rank), Color3.fromRGB(120, 255, 150))
+		else
+			showPosToast(string.format("▼ Caiu pra %dº", rank), Color3.fromRGB(255, 120, 120))
+		end
+	end
+	lastLocalRank = rank
+end
+
+-- ── Barra de progresso até a chegada (topo) ─────────────────────────────
+local progBar = Instance.new("Frame")
+progBar.Name = "Progress"
+progBar.AnchorPoint = Vector2.new(0.5, 0)
+progBar.Position = UDim2.fromScale(0.5, 0.04)
+progBar.Size = UDim2.fromScale(0.46, 0.036)
+progBar.BackgroundColor3 = Color3.fromRGB(16, 20, 36)
+progBar.BackgroundTransparency = 0.25
+progBar.BorderSizePixel = 0
+progBar.Visible = false
+Instance.new("UICorner").Parent = progBar
+local progStroke = Instance.new("UIStroke")
+progStroke.Color = Color3.fromRGB(255, 213, 92)
+progStroke.Thickness = 2
+progStroke.Transparency = 0.4
+progStroke.Parent = progBar
+progBar.Parent = gui
+
+local progFill = Instance.new("Frame")
+progFill.AnchorPoint = Vector2.new(0, 0.5)
+progFill.Position = UDim2.fromScale(0, 0.5)
+progFill.Size = UDim2.fromScale(0, 1)
+progFill.BackgroundColor3 = Color3.fromRGB(120, 230, 140)
+progFill.BorderSizePixel = 0
+Instance.new("UICorner").Parent = progFill
+local progGrad = Instance.new("UIGradient")
+progGrad.Color = ColorSequence.new(Color3.fromRGB(120, 230, 140), Color3.fromRGB(90, 200, 255))
+progGrad.Parent = progFill
+progFill.Parent = progBar
+
+local progLabel = Instance.new("TextLabel")
+progLabel.Size = UDim2.fromScale(1, 1)
+progLabel.BackgroundTransparency = 1
+progLabel.Font = Enum.Font.GothamBold
+progLabel.TextScaled = true
+progLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+progLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+progLabel.TextStrokeTransparency = 0.5
+progLabel.Text = "🏁 0%"
+progLabel.Parent = progBar
+local progLabelC = Instance.new("UITextSizeConstraint")
+progLabelC.MaxTextSize = 16
+progLabelC.MinTextSize = 8
+progLabelC.Parent = progLabel
+
+local function updateProgress(list)
+	local prog, finished
+	for i, entry in ipairs(list) do
+		if entry.userId == player.UserId then
+			prog = entry.finished and 1 or (tonumber(entry.progress) or 0)
+			finished = entry.finished
+			break
+		end
+	end
+	if prog == nil then
+		progBar.Visible = false
+		return
+	end
+	progBar.Visible = true
+	prog = math.clamp(prog, 0, 1)
+	TweenService:Create(progFill, TweenInfo.new(0.25), { Size = UDim2.fromScale(prog, 1) }):Play()
+	progLabel.Text = finished and "🏁 Chegou!" or string.format("🏁 %d%%", math.floor(prog * 100))
+end
+
+Remotes.RaceLiveRanking.OnClientEvent:Connect(function(list)
+	buildRanking(list)
+	updatePositionToast(list)
+	updateProgress(list)
+end)
