@@ -97,11 +97,11 @@ RaceConfig.FinishConsolationYen = 15000
 -- 🔊 Sons do evento. Cole os SoundIds da sua Toolbox/Library (só o número ou rbxassetid://...).
 -- 0 = sem som (o sistema toca silêncio). O resto do "juice" (efeitos visuais) funciona sem isso.
 RaceConfig.Sounds = {
-	CountdownBeep = 0, -- bip a cada número da contagem
-	Go = 0, -- som do "JÁ!"
-	Boost = 0, -- ao pegar a placa de velocidade
-	JumpPad = 0, -- ao usar o jump pad
-	Finish = 0, -- ao cruzar a chegada
+	CountdownBeep = 6238869231, -- bip a cada número da contagem
+	Go = 0, -- som do "JÁ!" (ainda sem ID)
+	Boost = 83211426606907, -- ao pegar a placa de velocidade
+	JumpPad = 101314601670996, -- ao usar o jump pad
+	Finish = 1844442542, -- ao cruzar a chegada
 	Volume = 0.6,
 }
 
