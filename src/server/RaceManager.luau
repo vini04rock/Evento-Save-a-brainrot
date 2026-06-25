@@ -25,6 +25,7 @@ local PrizeService = require(script.Parent.PrizeService)
 local RacerState = require(script.Parent.RacerState)
 local TrackElements = require(script.Parent.TrackElements)
 local RaceRecords = require(script.Parent.RaceRecords)
+local RaceMissionEvents = require(script.Parent.RaceMissionEvents)
 
 local RaceManager = {}
 
@@ -178,10 +179,14 @@ local function runRace(racers: { Player })
 					returnPlayer(player)
 				end)
 
-				-- Recorde (pessoal + global) + prêmio pendente — async, fora do Heartbeat (DataStore yield).
+				-- Recorde (pessoal + global) + prêmio pendente + missões — async, fora do Heartbeat (DataStore yield).
 				task.spawn(function()
 					local isNewRecord, bestTime = RaceRecords.Record(userId, playerName, raceTime)
 					PrizeService.AwardPlace(player, place, raceTime, isNewRecord, bestTime)
+					RaceMissionEvents.RecordFinish(player) -- "Complete N corridas"
+					if place == 1 then
+						RaceMissionEvents.RecordWin(player) -- "Vença N corridas"
+					end
 				end)
 			end
 		end
@@ -259,6 +264,8 @@ local function runSession()
 	RacerState.ClearAll()
 	for _, player in racers do
 		RacerState.Init(player, getPlayerRaceSpeed(player))
+		-- Missão "Participe de N corridas": conta só de entrar (ganhe ou perca). Async (DataStore).
+		task.spawn(RaceMissionEvents.RecordJoin, player)
 	end
 
 	-- 3. Layout aleatório de power-ups/armadilhas (novo a cada corrida).
@@ -282,6 +289,7 @@ end
 function RaceManager.Start()
 	PrizeService.Setup()
 	RaceRecords.Setup()
+	RaceMissionEvents.Setup()
 	task.spawn(runSession)
 end
 
