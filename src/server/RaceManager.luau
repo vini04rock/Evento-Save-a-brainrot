@@ -26,6 +26,7 @@ local RacerState = require(script.Parent.RacerState)
 local TrackElements = require(script.Parent.TrackElements)
 local RaceRecords = require(script.Parent.RaceRecords)
 local RaceMissionEvents = require(script.Parent.RaceMissionEvents)
+local RaceChampion = require(script.Parent.RaceChampion)
 
 local RaceManager = {}
 
@@ -186,6 +187,7 @@ local function runRace(racers: { Player })
 					RaceMissionEvents.RecordFinish(player) -- "Complete N corridas"
 					if place == 1 then
 						RaceMissionEvents.RecordWin(player) -- "Vença N corridas"
+						RaceChampion.SetChampion(userId, playerName) -- campeão (cosmético no lobby)
 					end
 				end)
 			end
@@ -290,6 +292,7 @@ function RaceManager.Start()
 	PrizeService.Setup()
 	RaceRecords.Setup()
 	RaceMissionEvents.Setup()
+	RaceChampion.Setup()
 	task.spawn(runSession)
 end
 
