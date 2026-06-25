@@ -94,8 +94,8 @@ RaceConfig.Elements = {
 		Size = Vector3.new(55, 13, 90), -- largo (X) e comprido (Z), baixinho (Y)
 		SlideMargin = 8, -- folga das paredes no trajeto lateral
 		SlideTime = 5.33, -- 30% da velocidade anterior (era 1.6 → tempo ÷ 0.3 = mais lento)
-		BackForce = 70, -- empurrão pra trás ao encostar (studs/s)
-		UpForce = 18, -- pulinho junto (tira do chão)
+		-- Encostou = empurrão pra TRÁS com a MESMA força/params do jump pad
+		-- (RaceConfig.Elements.JumpPad, com o sentido invertido) + lentidão curta.
 		SlowMultiplier = 0.6, -- -40% por um tiquinho
 		SlowDuration = 1.2,
 		PlayerCooldown = 1.0,

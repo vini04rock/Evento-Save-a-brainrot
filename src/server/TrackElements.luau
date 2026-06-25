@@ -296,7 +296,10 @@ local function makeRoller(cfg, z: number, halfWidth: number, centerX: number, fl
 			return
 		end
 		cooldown[player] = now
-		Remotes.RacePush:FireClient(player, 0, cfg.UpForce, -cfg.BackForce) -- empurra pra trás
+		-- Mesma força/parâmetros do jump pad, porém pra TRÁS (forward negativo). Reusa o
+		-- RaceJumpPad (que SETA a velocidade no cliente — forte e confiável, não aditivo).
+		local jump = RaceConfig.Elements.JumpPad
+		Remotes.RaceJumpPad:FireClient(player, -jump.ForwardForce, jump.UpForce)
 		RacerState.ApplyMultiplier(player, cfg.SlowMultiplier, cfg.SlowDuration)
 	end)
 	return roller
