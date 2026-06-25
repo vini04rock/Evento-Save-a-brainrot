@@ -307,10 +307,9 @@ end
 
 -- 🏁 Arco de checkpoint: landmark visual que o player atravessa (não bloqueia).
 -- Mostra a % do percurso (combina com a barra de progresso do HUD).
-local function makeArch(z: number, halfWidth: number, floorTopY: number, label: string, parent: Instance)
+local function makeArch(z: number, halfWidth: number, floorTopY: number, pillarH: number, label: string, parent: Instance)
 	local archColor = Color3.fromRGB(120, 200, 255)
-	local pillarH = 28
-	local pillarW = 4
+	local pillarW = 6
 	local edgeX = halfWidth - 6
 	local y = floorTopY + pillarH / 2
 
@@ -340,13 +339,13 @@ local function makeArch(z: number, halfWidth: number, floorTopY: number, label: 
 	beam.Position = Vector3.new(0, floorTopY + pillarH, z)
 	beam.Parent = parent
 
-	-- Placa flutuante com a % (sempre virada pra câmera).
+	-- Placa flutuante com a % (sempre virada pra câmera), logo acima da viga.
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "ArchLabel"
-	bb.Size = UDim2.fromOffset(220, 90)
-	bb.StudsOffset = Vector3.new(0, 5, 0)
+	bb.Size = UDim2.fromOffset(320, 130)
+	bb.StudsOffset = Vector3.new(0, 12, 0)
 	bb.AlwaysOnTop = false
-	bb.MaxDistance = 1200
+	bb.MaxDistance = 2000
 	bb.Adornee = beam
 	bb.Parent = beam
 	local txt = Instance.new("TextLabel")
@@ -459,10 +458,13 @@ function TrackElements.Generate(): Folder
 	end
 
 	-- 🏁 Arcos de checkpoint (landmarks fixos em 25/50/75% — combinam com a barra de progresso).
+	-- Altura do arco = 60% da parede lateral, pra o número ficar bem acima da metade (não colado no chão).
 	local totalLen = EventConfig.GetTotalLength()
+	local wallHeight = (EventConfig.Walls and EventConfig.Walls.Height) or 400
+	local archPillarH = wallHeight * 0.6
 	for _, frac in ipairs({ 0.25, 0.5, 0.75 }) do
 		local z = EventConfig.Origin.Z + totalLen * frac
-		makeArch(z, halfWidth, b.floorTopY, string.format("%d%%", math.floor(frac * 100)), folder)
+		makeArch(z, halfWidth, b.floorTopY, archPillarH, string.format("%d%%", math.floor(frac * 100)), folder)
 	end
 
 	return folder
