@@ -154,15 +154,12 @@ local function makeBoostGate(cfg, position: Vector3, parent: Instance): BasePart
 		label.TextScaled = true
 		label.TextColor3 = Color3.fromRGB(250, 255, 250)
 		label.Parent = border
+		-- Contorno pra dar definição (sem gradiente, pra o emoji manter a cor natural).
 		local labelStroke = Instance.new("UIStroke")
 		labelStroke.Color = Color3.fromRGB(16, 78, 38)
-		labelStroke.Thickness = 5
-		labelStroke.Transparency = 0.05
+		labelStroke.Thickness = 4
+		labelStroke.Transparency = 0.1
 		labelStroke.Parent = label
-		local labelGrad = Instance.new("UIGradient")
-		labelGrad.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), lightColor)
-		labelGrad.Rotation = 90
-		labelGrad.Parent = label
 	end
 
 	-- Bob flutuante (sobe/desce de leve).

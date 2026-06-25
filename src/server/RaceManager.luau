@@ -145,6 +145,7 @@ local function runRace(racers: { Player })
 
 	local placeCount = 0
 	local finished: { [Player]: boolean } = {}
+	local finishOrder = {} -- { { userId, name, place }, ... } — pro placar ao vivo
 	local startTime = os.clock()
 
 	local connection
@@ -159,6 +160,7 @@ local function runRace(racers: { Player })
 				placeCount += 1
 				local place = placeCount
 				local raceTime = os.clock() - startTime
+				table.insert(finishOrder, { userId = player.UserId, name = player.Name, place = place })
 
 				-- Grava o prêmio pendente (top 3 = pacote+braincoins; demais = consolação em Yen).
 				-- O lobby mostra a janela e entrega quando o player fecha (ver RaceRewardGrantService).
@@ -181,6 +183,38 @@ local function runRace(racers: { Player })
 		end
 	end)
 
+	-- Placar ao vivo (throttled): chegados na ordem de chegada + quem corre por distância.
+	local startZ = Config.Origin.Z
+	local rankActive = true
+	task.spawn(function()
+		while rankActive do
+			local ranking = {}
+			for _, e in ipairs(finishOrder) do
+				table.insert(ranking, { userId = e.userId, name = e.name, finished = true, place = e.place })
+			end
+			local running = {}
+			for _, player in ipairs(racers) do
+				if player.Parent and not finished[player] then
+					local root = getRoot(player)
+					table.insert(running, {
+						userId = player.UserId,
+						name = player.Name,
+						z = root and root.Position.Z or startZ,
+					})
+				end
+			end
+			table.sort(running, function(a, b)
+				return a.z > b.z
+			end)
+			for _, r in ipairs(running) do
+				local progress = math.clamp((r.z - startZ) / math.max(1, finishZ - startZ), 0, 1)
+				table.insert(ranking, { userId = r.userId, name = r.name, finished = false, progress = progress })
+			end
+			Remotes.RaceLiveRanking:FireAllClients(ranking)
+			task.wait(0.4)
+		end
+	end)
+
 	-- Espera todos chegarem OU estourar o tempo limite (5 min).
 	while os.clock() - startTime < RaceConfig.RaceTimeLimitSeconds do
 		local allDone = true
@@ -196,6 +230,7 @@ local function runRace(racers: { Player })
 		task.wait(0.2)
 	end
 	connection:Disconnect()
+	rankActive = false
 
 	-- Tempo esgotou (ou todos terminaram): manda de volta quem ainda está aqui e NÃO terminou.
 	local stragglers = {}

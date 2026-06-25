@@ -49,7 +49,7 @@ RaceConfig.Elements = {
 		Color = Color3.fromRGB(60, 230, 110),
 		Size = Vector3.new(16, 9, 0.6), -- largura(X) x altura(Y) x espessura(Z, fina)
 		FloatY = 6, -- centro da placa acima do chão (flutua na altura do player)
-		Symbol = ">>", -- símbolo de velocidade mostrado na placa
+		Symbol = "⚡", -- símbolo de velocidade mostrado na placa
 	},
 	-- 🔵 Jump pad: chão azul. Empurra pra frente e pra cima (reutilizável).
 	JumpPad = {

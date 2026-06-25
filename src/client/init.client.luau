@@ -223,3 +223,87 @@ Remotes.RaceJumpPad.OnClientEvent:Connect(function(forwardForce, upForce)
 		root.AssemblyLinearVelocity = Vector3.new(vx, tonumber(upForce) or 80, tonumber(forwardForce) or 110)
 	end
 end)
+
+-- ── Placar de posições AO VIVO (direita da tela) ───────────────────────
+local rankMedals = { [1] = "🥇", [2] = "🥈", [3] = "🥉" }
+
+local rankPanel = Instance.new("Frame")
+rankPanel.Name = "Ranking"
+rankPanel.AnchorPoint = Vector2.new(1, 0.5)
+rankPanel.Position = UDim2.new(0.99, 0, 0.46, 0)
+rankPanel.Size = UDim2.fromScale(0.2, 0.52)
+rankPanel.BackgroundColor3 = Color3.fromRGB(16, 20, 36)
+rankPanel.BackgroundTransparency = 0.22
+rankPanel.BorderSizePixel = 0
+rankPanel.Visible = false
+Instance.new("UICorner").Parent = rankPanel
+local rankPanelStroke = Instance.new("UIStroke")
+rankPanelStroke.Color = Color3.fromRGB(255, 213, 92)
+rankPanelStroke.Thickness = 2
+rankPanelStroke.Transparency = 0.35
+rankPanelStroke.Parent = rankPanel
+rankPanel.Parent = gui
+
+local rankTitle = Instance.new("TextLabel")
+rankTitle.Size = UDim2.fromScale(1, 0.1)
+rankTitle.BackgroundTransparency = 1
+rankTitle.Font = Enum.Font.FredokaOne
+rankTitle.TextScaled = true
+rankTitle.TextColor3 = Color3.fromRGB(255, 224, 130)
+rankTitle.Text = "🏁 Posições"
+rankTitle.Parent = rankPanel
+
+local rankList = Instance.new("Frame")
+rankList.Position = UDim2.fromScale(0.04, 0.12)
+rankList.Size = UDim2.fromScale(0.92, 0.86)
+rankList.BackgroundTransparency = 1
+rankList.Parent = rankPanel
+local rankLayout = Instance.new("UIListLayout")
+rankLayout.SortOrder = Enum.SortOrder.LayoutOrder
+rankLayout.Padding = UDim.new(0.015, 0)
+rankLayout.Parent = rankList
+
+local function buildRanking(list)
+	for _, child in rankList:GetChildren() do
+		if child:IsA("TextLabel") then
+			child:Destroy()
+		end
+	end
+	if type(list) ~= "table" or #list == 0 then
+		rankPanel.Visible = false
+		return
+	end
+	rankPanel.Visible = true
+	for i, entry in list do
+		local row = Instance.new("TextLabel")
+		row.Size = UDim2.fromScale(1, 0.072)
+		row.BackgroundColor3 = Color3.fromRGB(8, 12, 26)
+		row.BackgroundTransparency = 0.35
+		row.BorderSizePixel = 0
+		row.Font = Enum.Font.GothamBold
+		row.TextXAlignment = Enum.TextXAlignment.Left
+		row.TextScaled = true
+		row.LayoutOrder = i
+		local rankNum = (entry.finished and entry.place) or i
+		local badge = rankMedals[rankNum] or (tostring(rankNum) .. "º")
+		local check = entry.finished and " ✓" or ""
+		row.Text = string.format("  %s %s%s", badge, tostring(entry.name), check)
+		local isLocal = entry.userId == player.UserId
+		row.TextColor3 = if isLocal
+			then Color3.fromRGB(130, 255, 160)
+			elseif entry.finished then Color3.fromRGB(255, 224, 130)
+			else Color3.fromRGB(225, 232, 245)
+		if isLocal then
+			row.BackgroundColor3 = Color3.fromRGB(28, 60, 36)
+			row.BackgroundTransparency = 0.12
+		end
+		Instance.new("UICorner").Parent = row
+		local constraint = Instance.new("UITextSizeConstraint")
+		constraint.MaxTextSize = 16
+		constraint.MinTextSize = 8
+		constraint.Parent = row
+		row.Parent = rankList
+	end
+end
+
+Remotes.RaceLiveRanking.OnClientEvent:Connect(buildRanking)

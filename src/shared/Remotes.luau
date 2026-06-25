@@ -55,6 +55,9 @@ local Remotes = {
 	-- então setar velocidade no servidor não funciona de forma confiável).
 	-- Payload: (forwardForce: number, upForce: number)
 	RaceJumpPad = getRemoteEvent(folder, "RaceJumpPad"),
+	-- Placar ao vivo (Servidor -> Cliente): lista ordenada de 1º ao último, atualiza durante a corrida.
+	-- Payload: { { userId, name, finished, place?, progress? }, ... }
+	RaceLiveRanking = getRemoteEvent(folder, "RaceLiveRanking"),
 }
 
 return Remotes
