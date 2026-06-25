@@ -54,8 +54,8 @@ RaceConfig.Elements = {
 	-- 🔵 Jump pad: chão azul. Empurra pra frente e pra cima (reutilizável).
 	JumpPad = {
 		Count = 14,
-		ForwardForce = 330, -- +200% (era 110)
-		UpForce = 240, -- +200% (era 80)
+		ForwardForce = 330, -- forte pra frente
+		UpForce = 70, -- só um pulinho pra sair do chão (reduzido de 240)
 		PlayerCooldown = 0.6, -- anti-spam por jogador
 		Color = Color3.fromRGB(70, 150, 255),
 		Size = Vector3.new(20, 1, 20),

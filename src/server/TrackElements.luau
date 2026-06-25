@@ -70,33 +70,99 @@ end
 -- 🟢 Boost: PLACA flutuante semitransparente com símbolo de velocidade (o player atravessa).
 -- Flutua na altura do player (bob suave) e mostra o símbolo nas duas faces.
 local function makeBoostGate(cfg, position: Vector3, parent: Instance): BasePart
+	local color = cfg.Color
+	local lightColor = color:Lerp(Color3.fromRGB(255, 255, 255), 0.3)
+
 	local panel = Instance.new("Part")
 	panel.Name = "BoostGate"
 	panel.Anchored = true
 	panel.CanCollide = false
 	panel.Size = cfg.Size
-	panel.Color = cfg.Color
+	panel.Color = color
 	panel.Material = Enum.Material.Neon
 	panel.Transparency = 0.55
 	panel.CastShadow = false
 	panel.Position = position
 	panel.Parent = parent
 
+	-- Brilho ambiente.
+	local light = Instance.new("PointLight")
+	light.Color = lightColor
+	light.Brightness = 2.4
+	light.Range = 16
+	light.Shadows = false
+	light.Parent = panel
+
+	-- Faíscas subindo (detalhe "mágico").
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	emitter.Color = ColorSequence.new(lightColor, Color3.fromRGB(255, 255, 255))
+	emitter.LightEmission = 1
+	emitter.LightInfluence = 0
+	emitter.Lifetime = NumberRange.new(0.6, 1.2)
+	emitter.Rate = 16
+	emitter.Speed = NumberRange.new(1, 3)
+	emitter.Acceleration = Vector3.new(0, 4, 0)
+	emitter.SpreadAngle = Vector2.new(40, 40)
+	emitter.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1.3),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	emitter.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.15),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	emitter.Parent = panel
+
 	for _, face in ipairs({ Enum.NormalId.Front, Enum.NormalId.Back }) do
 		local gui = Instance.new("SurfaceGui")
 		gui.Face = face
 		gui.LightInfluence = 0
 		gui.Parent = panel
+
+		-- Painel arredondado com borda neon.
+		local border = Instance.new("Frame")
+		border.Name = "Border"
+		border.AnchorPoint = Vector2.new(0.5, 0.5)
+		border.Position = UDim2.fromScale(0.5, 0.5)
+		border.Size = UDim2.fromScale(0.92, 0.86)
+		border.BackgroundColor3 = Color3.fromRGB(8, 28, 16)
+		border.BackgroundTransparency = 0.3
+		border.Parent = gui
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 26)
+		corner.Parent = border
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = lightColor
+		stroke.Thickness = 6
+		stroke.Transparency = 0
+		stroke.Parent = border
+		local innerGrad = Instance.new("UIGradient")
+		innerGrad.Color = ColorSequence.new(color, Color3.fromRGB(10, 40, 22))
+		innerGrad.Rotation = 90
+		innerGrad.Parent = border
+
+		-- Símbolo de velocidade GRANDE com gradiente + contorno.
 		local label = Instance.new("TextLabel")
-		label.Size = UDim2.fromScale(1, 1)
+		label.Name = "Symbol"
+		label.AnchorPoint = Vector2.new(0.5, 0.5)
+		label.Position = UDim2.fromScale(0.5, 0.5)
+		label.Size = UDim2.fromScale(0.92, 0.78)
 		label.BackgroundTransparency = 1
 		label.Font = Enum.Font.FredokaOne
 		label.Text = tostring(cfg.Symbol or ">>")
 		label.TextScaled = true
-		label.TextColor3 = Color3.fromRGB(255, 255, 255)
-		label.TextStrokeColor3 = Color3.fromRGB(20, 70, 30)
-		label.TextStrokeTransparency = 0.2
-		label.Parent = gui
+		label.TextColor3 = Color3.fromRGB(250, 255, 250)
+		label.Parent = border
+		local labelStroke = Instance.new("UIStroke")
+		labelStroke.Color = Color3.fromRGB(16, 78, 38)
+		labelStroke.Thickness = 5
+		labelStroke.Transparency = 0.05
+		labelStroke.Parent = label
+		local labelGrad = Instance.new("UIGradient")
+		labelGrad.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), lightColor)
+		labelGrad.Rotation = 90
+		labelGrad.Parent = label
 	end
 
 	-- Bob flutuante (sobe/desce de leve).
