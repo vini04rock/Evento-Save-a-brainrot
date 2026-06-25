@@ -58,6 +58,9 @@ local Remotes = {
 	-- Placar ao vivo (Servidor -> Cliente): lista ordenada de 1º ao último, atualiza durante a corrida.
 	-- Payload: { { userId, name, finished, place?, progress? }, ... }
 	RaceLiveRanking = getRemoteEvent(folder, "RaceLiveRanking"),
+	-- Efeito de velocidade (Servidor -> Cliente): mostra o "juice" do boost por N segundos.
+	-- Payload: (duration: number)
+	RaceBoostFx = getRemoteEvent(folder, "RaceBoostFx"),
 }
 
 return Remotes

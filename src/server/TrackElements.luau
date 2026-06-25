@@ -186,6 +186,7 @@ local function wireBoost(gate: BasePart, cfg)
 		end
 		used = true
 		RacerState.ApplyMultiplier(player, cfg.Multiplier, cfg.Duration)
+		Remotes.RaceBoostFx:FireClient(player, cfg.Duration) -- efeito de velocidade no cliente
 		gate.CanTouch = false
 		for _, gui in ipairs(gate:GetChildren()) do
 			if gui:IsA("SurfaceGui") then

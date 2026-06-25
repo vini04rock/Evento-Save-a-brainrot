@@ -9,11 +9,93 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
 
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
+local RaceConfig = require(ReplicatedStorage.Shared.RaceConfig)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+
+-- ── "Juice": sons + efeitos de câmera + confete ────────────────────────
+local BASE_FOV = 70
+
+local function playSound(soundId: number?)
+	local id = tonumber(soundId) or 0
+	if id <= 0 then
+		return -- 0 = sem som configurado
+	end
+	local sound = Instance.new("Sound")
+	sound.SoundId = "rbxassetid://" .. tostring(id)
+	sound.Volume = tonumber(RaceConfig.Sounds and RaceConfig.Sounds.Volume) or 0.6
+	sound.Parent = SoundService
+	sound:Play()
+	sound.Ended:Once(function()
+		sound:Destroy()
+	end)
+	task.delay(8, function()
+		if sound.Parent then
+			sound:Destroy()
+		end
+	end)
+end
+
+local fovToken = 0
+-- Aumenta o FOV (sensação de velocidade) por `hold` segundos e volta ao normal.
+local function fovPunch(extra: number, hold: number, restore: number)
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	fovToken += 1
+	local token = fovToken
+	TweenService:Create(camera, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		FieldOfView = BASE_FOV + extra,
+	}):Play()
+	task.delay(hold, function()
+		if fovToken ~= token then
+			return
+		end
+		local cam = workspace.CurrentCamera
+		if cam then
+			TweenService:Create(cam, TweenInfo.new(restore, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				FieldOfView = BASE_FOV,
+			}):Play()
+		end
+	end)
+end
+
+-- Explosão de confete colorido no personagem (na chegada).
+local function celebrate()
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if not (root and root:IsA("BasePart")) then
+		return
+	end
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	emitter.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 90, 90)),
+		ColorSequenceKeypoint.new(0.33, Color3.fromRGB(255, 220, 90)),
+		ColorSequenceKeypoint.new(0.66, Color3.fromRGB(90, 200, 255)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 255, 150)),
+	})
+	emitter.LightEmission = 0.6
+	emitter.Lifetime = NumberRange.new(0.9, 1.6)
+	emitter.Speed = NumberRange.new(10, 20)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Acceleration = Vector3.new(0, -18, 0)
+	emitter.Rate = 0
+	emitter.Rotation = NumberRange.new(0, 360)
+	emitter.RotSpeed = NumberRange.new(-200, 200)
+	emitter.Size = NumberSequence.new(1.3)
+	emitter.Parent = root
+	emitter:Emit(70)
+	task.delay(2.5, function()
+		emitter:Destroy()
+	end)
+end
 
 -- ── Helpers de UI ──────────────────────────────────────────────────────
 local function withStroke(gui: GuiObject, thickness: number)
@@ -185,8 +267,10 @@ local function onState(payload)
 		flashCenter("Aguardando jogadores..." .. suffix, Color3.fromRGB(180, 220, 255))
 	elseif phase == "countdown" then
 		flashCenter(tostring(payload.n), Color3.fromRGB(255, 255, 255))
+		playSound(RaceConfig.Sounds.CountdownBeep)
 	elseif phase == "go" then
 		flashCenter("JÁ!", Color3.fromRGB(120, 255, 120))
+		playSound(RaceConfig.Sounds.Go)
 		startTimer()
 		task.delay(1, function()
 			if center.Text == "JÁ!" then
@@ -199,6 +283,8 @@ local function onState(payload)
 			"Você chegou em " .. placeText(payload.place) .. "!",
 			Color3.fromRGB(255, 215, 0)
 		)
+		playSound(RaceConfig.Sounds.Finish)
+		celebrate()
 	elseif phase == "results" then
 		stopTimer()
 		center.Visible = false
@@ -221,7 +307,15 @@ Remotes.RaceJumpPad.OnClientEvent:Connect(function(forwardForce, upForce)
 	if root and root:IsA("BasePart") then
 		local vx = root.AssemblyLinearVelocity.X
 		root.AssemblyLinearVelocity = Vector3.new(vx, tonumber(upForce) or 80, tonumber(forwardForce) or 110)
+		playSound(RaceConfig.Sounds.JumpPad)
+		fovPunch(8, 0.12, 0.25) -- "kick" rápido de câmera
 	end
+end)
+
+-- Boost (placa de velocidade): som + sensação de velocidade (FOV puxado) pela duração.
+Remotes.RaceBoostFx.OnClientEvent:Connect(function(duration)
+	playSound(RaceConfig.Sounds.Boost)
+	fovPunch(14, tonumber(duration) or 3, 0.4)
 end)
 
 -- ── Placar de posições AO VIVO (direita da tela) ───────────────────────

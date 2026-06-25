@@ -94,4 +94,15 @@ RaceConfig.PrizeByPlace = {
 -- Consolação pra quem TERMINA fora do top 3 (reduz frustração infantil): Yen.
 RaceConfig.FinishConsolationYen = 15000
 
+-- 🔊 Sons do evento. Cole os SoundIds da sua Toolbox/Library (só o número ou rbxassetid://...).
+-- 0 = sem som (o sistema toca silêncio). O resto do "juice" (efeitos visuais) funciona sem isso.
+RaceConfig.Sounds = {
+	CountdownBeep = 0, -- bip a cada número da contagem
+	Go = 0, -- som do "JÁ!"
+	Boost = 0, -- ao pegar a placa de velocidade
+	JumpPad = 0, -- ao usar o jump pad
+	Finish = 0, -- ao cruzar a chegada
+	Volume = 0.6,
+}
+
 return RaceConfig
