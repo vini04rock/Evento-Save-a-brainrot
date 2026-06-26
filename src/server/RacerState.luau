@@ -3,10 +3,19 @@
 	----------
 	Controla a velocidade de cada corredor durante a corrida:
 	  - Base   = a velocidade que o player tem no jogo principal (via TeleportData).
-	  - Mult   = multiplicador temporário (boost verde = 1.5, lentidão vermelha = 0.5).
+	  - Boosts = power-ups de velocidade ACUMULÁVEIS, por TIPO (ver regras abaixo).
+	  - Slow   = lentidão (rolo/armadilha), canal próprio multiplicativo (último vence).
 	  - Frozen = congelado (largada/contagem ou já chegou) → WalkSpeed 0.
 
-	WalkSpeed efetiva = Frozen and 0 or (Base * Mult).
+	Regras dos boosts (AddBoost):
+	  - Cada TIPO de boost tem 1 timer (que reseta a cada coleta do mesmo tipo)
+	    e um contador de stacks. Mais coletas do MESMO tipo = mais velocidade,
+	    e o tempo reseta.
+	  - Tipos DIFERENTES somam a velocidade, mas têm timers independentes
+	    (o tempo não acumula). Quando o timer de um tipo acaba, todos os stacks
+	    daquele tipo são removidos de uma vez.
+
+	WalkSpeed efetiva = Frozen and 0 or (base * slow * (1 + Σ (mult_tipo-1) * stacks_tipo)).
 
 	Usado pelo RaceManager (freeze/base) e pelo TrackElements (boost/lentidão).
 	Não cria conexões; só mexe no Humanoid quando chamado.
@@ -14,8 +23,16 @@
 
 local RacerState = {}
 
--- [player] = { base, mult, frozen, effectToken }
-local state: { [Player]: { base: number, mult: number, frozen: boolean, effectToken: number } } = {}
+type Boost = { mult: number, stacks: number, token: number }
+type State = {
+	base: number,
+	frozen: boolean,
+	slowMult: number,
+	slowToken: number,
+	boosts: { [any]: Boost },
+}
+
+local state: { [Player]: State } = {}
 
 local function getHumanoid(player: Player): Humanoid?
 	local char = player.Character
@@ -28,16 +45,26 @@ local function refresh(player: Player)
 	if not s or not hum then
 		return
 	end
-	hum.WalkSpeed = s.frozen and 0 or (s.base * s.mult)
+	if s.frozen then
+		hum.WalkSpeed = 0
+		return
+	end
+	-- Soma o bônus de todos os tipos de boost ativos (cada stack soma mult-1).
+	local boostBonus = 0
+	for _, b in s.boosts do
+		boostBonus += (b.mult - 1) * b.stacks
+	end
+	hum.WalkSpeed = math.max(0, s.base * s.slowMult * (1 + boostBonus))
 end
 
 -- Registra o corredor com a velocidade-base dele (a do jogo principal).
 function RacerState.Init(player: Player, baseSpeed: number)
 	state[player] = {
 		base = math.max(1, baseSpeed),
-		mult = 1,
 		frozen = false,
-		effectToken = 0,
+		slowMult = 1,
+		slowToken = 0,
+		boosts = {},
 	}
 end
 
@@ -56,22 +83,52 @@ function RacerState.SetFrozen(player: Player, frozen: boolean)
 	refresh(player)
 end
 
--- Aplica um multiplicador temporário (boost/lentidão). O último aplicado vence
--- (não empilha); cada um tem seu próprio prazo via token.
+-- Coleta de um boost de velocidade ACUMULÁVEL. `key` identifica o TIPO (use a
+-- tabela de config do boost, ex.: RaceConfig.Elements.SpeedBoost). Tipos iguais
+-- empilham e resetam o timer; tipos diferentes somam mas têm timers próprios.
+function RacerState.AddBoost(player: Player, key: any, mult: number, duration: number)
+	local s = state[player]
+	if not s then
+		return
+	end
+	local b = s.boosts[key]
+	if not b then
+		b = { mult = mult, stacks = 0, token = 0 }
+		s.boosts[key] = b
+	end
+	b.mult = mult
+	b.stacks += 1
+	b.token += 1
+	local token = b.token
+	refresh(player)
+
+	-- Reseta o timer deste tipo: só o último token (a última coleta) expira o tipo.
+	task.delay(duration, function()
+		local cur = state[player]
+		local curBoost = cur and cur.boosts[key]
+		if curBoost and curBoost.token == token then
+			cur.boosts[key] = nil -- acabou o tempo: remove TODOS os stacks deste tipo
+			refresh(player)
+		end
+	end)
+end
+
+-- Aplica uma LENTIDÃO temporária (rolo/armadilha). Canal multiplicativo próprio,
+-- separado dos boosts; o último aplicado vence, com seu próprio prazo via token.
 function RacerState.ApplyMultiplier(player: Player, mult: number, duration: number)
 	local s = state[player]
 	if not s then
 		return
 	end
-	s.mult = mult
+	s.slowMult = mult
 	refresh(player)
 
-	s.effectToken += 1
-	local token = s.effectToken
+	s.slowToken += 1
+	local token = s.slowToken
 	task.delay(duration, function()
 		local cur = state[player]
-		if cur and cur.effectToken == token then
-			cur.mult = 1
+		if cur and cur.slowToken == token then
+			cur.slowMult = 1
 			refresh(player)
 		end
 	end)
