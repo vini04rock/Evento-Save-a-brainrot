@@ -151,6 +151,25 @@ timer.Visible = false
 withStroke(timer, 3)
 timer.Parent = gui
 
+-- Banner "Voltando para o Lobby" (contagem ao cruzar a chegada).
+local returnBanner = Instance.new("TextLabel")
+returnBanner.Name = "ReturnBanner"
+returnBanner.AnchorPoint = Vector2.new(0.5, 0.5)
+returnBanner.Position = UDim2.fromScale(0.5, 0.66)
+returnBanner.Size = UDim2.fromScale(0.6, 0.12)
+returnBanner.BackgroundColor3 = Color3.fromRGB(16, 20, 36)
+returnBanner.BackgroundTransparency = 0.22
+returnBanner.Font = Enum.Font.FredokaOne
+returnBanner.TextScaled = true
+returnBanner.TextColor3 = Color3.fromRGB(190, 225, 255)
+returnBanner.Text = ""
+returnBanner.Visible = false
+local returnCorner = Instance.new("UICorner")
+returnCorner.CornerRadius = UDim.new(0, 14)
+returnCorner.Parent = returnBanner
+withStroke(returnBanner, 3)
+returnBanner.Parent = gui
+
 -- Quadro de resultados.
 local results = Instance.new("Frame")
 results.Name = "Results"
@@ -256,6 +275,32 @@ local function buildResults(standings)
 	end
 end
 
+-- Contagem "Voltando para o Lobby em N" ao cruzar a chegada (o servidor teleporta no fim).
+local returnToken = 0
+local function startReturnCountdown(seconds)
+	seconds = math.max(1, math.floor(tonumber(seconds) or 3))
+	returnToken += 1
+	local myToken = returnToken
+	returnBanner.Visible = true
+	task.spawn(function()
+		for n = seconds, 1, -1 do
+			if returnToken ~= myToken then
+				return
+			end
+			returnBanner.Text = "🏁 Voltando para o Lobby em " .. n
+			task.wait(1)
+		end
+		if returnToken == myToken then
+			returnBanner.Text = "🏁 Voltando para o Lobby..."
+		end
+	end)
+end
+
+local function hideReturnCountdown()
+	returnToken += 1
+	returnBanner.Visible = false
+end
+
 -- ── Reage às mudanças de fase ──────────────────────────────────────────
 local function onState(payload)
 	local phase = payload.phase
@@ -263,6 +308,7 @@ local function onState(payload)
 	if phase == "waiting" then
 		results.Visible = false
 		timer.Visible = false
+		hideReturnCountdown()
 		local suffix = if payload.n then " (" .. payload.n .. ")" else ""
 		flashCenter("Aguardando jogadores..." .. suffix, Color3.fromRGB(180, 220, 255))
 	elseif phase == "countdown" then
@@ -285,6 +331,7 @@ local function onState(payload)
 		)
 		playSound(RaceConfig.Sounds.Finish)
 		celebrate()
+		startReturnCountdown(payload.returnSeconds or 3)
 	elseif phase == "results" then
 		stopTimer()
 		center.Visible = false

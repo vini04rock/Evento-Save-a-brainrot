@@ -30,6 +30,9 @@ local RaceChampion = require(script.Parent.RaceChampion)
 
 local RaceManager = {}
 
+local MAX_RETURN_RETRIES = 4
+local returnRetriesByUserId = {} -- [userId] = nº de tentativas de voltar pro lobby
+
 -- Lê a velocidade do player a partir do TeleportData do teleporte (mapa userId -> WalkSpeed).
 local function getPlayerRaceSpeed(player: Player): number
 	local ok, joinData = pcall(function()
@@ -173,6 +176,7 @@ local function runRace(racers: { Player })
 					place = place,
 					time = raceTime,
 					reward = reward, -- { Pack, Braincoins } — pro cliente mostrar
+					returnSeconds = RaceConfig.FinishReturnDelaySeconds, -- contagem "Voltando ao Lobby"
 				})
 
 				-- Teleporta esse finalista de volta depois de um tempinho (vê o resultado dele).
@@ -293,6 +297,29 @@ function RaceManager.Start()
 	RaceRecords.Setup()
 	RaceMissionEvents.Setup()
 	RaceChampion.Setup()
+
+	-- Retorno robusto: se o teleporte de volta pro lobby FALHAR (init), tenta de novo
+	-- (até MAX_RETURN_RETRIES). Resolve "alguns players não voltaram".
+	TeleportService.TeleportInitFailed:Connect(function(player, _result, errorMessage)
+		if not player or player.Parent ~= Players then
+			return
+		end
+		local uid = player.UserId
+		returnRetriesByUserId[uid] = (returnRetriesByUserId[uid] or 0) + 1
+		warn(string.format(
+			"[Evento] Falha ao voltar %s (tentativa %d/%d): %s",
+			tostring(player.Name), returnRetriesByUserId[uid], MAX_RETURN_RETRIES, tostring(errorMessage)
+		))
+		if returnRetriesByUserId[uid] <= MAX_RETURN_RETRIES then
+			task.delay(2, function()
+				returnPlayer(player)
+			end)
+		end
+	end)
+	Players.PlayerRemoving:Connect(function(player)
+		returnRetriesByUserId[player.UserId] = nil -- saiu (teleporte deu certo ou desconectou)
+	end)
+
 	task.spawn(runSession)
 end
 

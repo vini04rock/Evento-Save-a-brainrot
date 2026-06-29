@@ -26,8 +26,8 @@ RaceConfig.RaceWalkSpeed = 60
 -- Tempo máximo da corrida (5 min). Quem não terminar até lá é teleportado de volta.
 RaceConfig.RaceTimeLimitSeconds = 300
 
--- Quanto tempo o finalista vê o resultado dele antes de ser teleportado de volta (individual).
-RaceConfig.FinishReturnDelaySeconds = 4
+-- Contagem "Voltando para o Lobby em N" ao cruzar a chegada, antes de teleportar (individual).
+RaceConfig.FinishReturnDelaySeconds = 3
 
 -- Quanto tempo mostra o resultado antes de teleportar de volta (não usado no modelo individual).
 RaceConfig.ResultsSeconds = 8
