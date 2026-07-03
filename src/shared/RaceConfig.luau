@@ -117,17 +117,19 @@ RaceConfig.Elements = {
 -- "Save a Brainrot (BETA)" = 90667727140026 (mesmo experience: 9974657761).
 RaceConfig.MainPlaceId = 90667727140026
 
--- Prêmio por colocação (índice = posição). Pack = id do pacote no jogo principal.
+-- Prêmio por colocação (índice = posição), em RACE COINS (moeda do evento).
 -- A entrega é cross-place: a corrida grava um "prêmio pendente" num DataStore e o LOBBY
 -- entrega quando o player volta (ver PrizeService + o RaceRewardGrantService no lobby).
+-- IMPORTANTE: TODO finalista (inclusive o pódio) ganha +FinishRaceCoins por completar.
 RaceConfig.PrizeByPlace = {
-	{ Pack = "BrainrotPack2", Braincoins = 25 }, -- 1º
-	{ Pack = "BrainrotPack1", Braincoins = 12 }, -- 2º
-	{ Pack = "BrainrotPack1", Braincoins = 6 }, -- 3º
+	{ RaceCoins = 55 }, -- 1º
+	{ RaceCoins = 30 }, -- 2º
+	{ RaceCoins = 15 }, -- 3º
 }
 
--- Consolação pra quem TERMINA fora do top 3 (reduz frustração infantil): Yen.
-RaceConfig.FinishConsolationYen = 15000
+-- Race Coins que TODO jogador que cruza a linha de chegada ganha (soma com o do pódio).
+-- Ex.: 1º = 55 + 5 = 60 | fora do pódio = 5.
+RaceConfig.FinishRaceCoins = 5
 
 -- 🔊 Sons do evento. Cole os SoundIds da sua Toolbox/Library (só o número ou rbxassetid://...).
 -- 0 = sem som (o sistema toca silêncio). O resto do "juice" (efeitos visuais) funciona sem isso.
