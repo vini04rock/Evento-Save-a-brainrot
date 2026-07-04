@@ -3,7 +3,7 @@
 	-----------------------------
 	Registra os tempos de corrida em DataStores COMPARTILHADOS (mesmo experience do lobby):
 	  - RaceBestTimes_v1  (chave "u_<userId>" = melhor tempo em ms do jogador)  → recorde pessoal
-	  - RaceGlobalTop_v1  (chave "top" = lista ordenada dos 10 melhores)        → ranking global
+	  - RaceGlobalTop_v1  (chave "top" = lista ordenada dos 100 melhores)       → ranking global
 
 	Record() devolve se foi NOVO RECORDE pessoal e o melhor tempo atual (em segundos),
 	pra a janela de resultados do lobby mostrar "🏆 Novo recorde!".
@@ -16,7 +16,7 @@ local RaceRecords = {}
 local BEST_STORE_NAME = "RaceBestTimes_v1"
 local GLOBAL_STORE_NAME = "RaceGlobalTop_v1"
 local GLOBAL_KEY = "top"
-local TOP_SIZE = 10
+local TOP_SIZE = 100
 
 local bestStore = nil
 local globalStore = nil
@@ -32,7 +32,7 @@ function RaceRecords.Setup()
 	globalStore = ok2 and s2 or nil
 end
 
--- Lê o top-10 global (lista { {userId, name, timeMs}, ... } ordenada do mais rápido).
+-- Lê o top-100 global (lista { {userId, name, timeMs}, ... } ordenada do mais rápido).
 function RaceRecords.GetGlobalTop()
 	if not globalStore then
 		return {}
