@@ -121,15 +121,16 @@ RaceConfig.MainPlaceId = 90667727140026
 -- A entrega é cross-place: a corrida grava um "prêmio pendente" num DataStore e o LOBBY
 -- entrega quando o player volta (ver PrizeService + o RaceRewardGrantService no lobby).
 -- IMPORTANTE: TODO finalista (inclusive o pódio) ganha +FinishRaceCoins por completar.
+-- Totais finais (balanceamento 2026-07-05): 1º=100 | 2º=60 | 3º=35 | fora do pódio=15.
 RaceConfig.PrizeByPlace = {
-	{ RaceCoins = 55 }, -- 1º
-	{ RaceCoins = 30 }, -- 2º
-	{ RaceCoins = 15 }, -- 3º
+	{ RaceCoins = 85 }, -- 1º (85 + 15 de finalista = 100)
+	{ RaceCoins = 45 }, -- 2º (45 + 15 de finalista = 60)
+	{ RaceCoins = 20 }, -- 3º (20 + 15 de finalista = 35)
 }
 
 -- Race Coins que TODO jogador que cruza a linha de chegada ganha (soma com o do pódio).
--- Ex.: 1º = 55 + 5 = 60 | fora do pódio = 5.
-RaceConfig.FinishRaceCoins = 5
+-- Ex.: 1º = 85 + 15 = 100 | fora do pódio = 15.
+RaceConfig.FinishRaceCoins = 15
 
 -- 🔊 Sons do evento. Cole os SoundIds da sua Toolbox/Library (só o número ou rbxassetid://...).
 -- 0 = sem som (o sistema toca silêncio). O resto do "juice" (efeitos visuais) funciona sem isso.
