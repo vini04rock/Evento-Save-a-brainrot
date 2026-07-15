@@ -148,7 +148,7 @@ RaceConfig.MainPlaceId = 90667727140026
 -- IMPORTANTE: TODO finalista (inclusive o pódio) ganha +FinishRaceCoins por completar.
 -- Estes valores são o EXTRA do pódio (somam com o FinishRaceCoins de participação).
 -- Total final: 1º = 85+15 = 100 | 2º = 45+15 = 60 | 3º = 20+15 = 35 | fora do pódio = 15.
--- (rebalanceado: participação mais generosa pro F2P, razão 1º/participação ~6,7×)
+-- (rebalanceado 2026-07-05: participação mais generosa pro F2P, razão 1º/participação ~6,7×)
 RaceConfig.PrizeByPlace = {
 	{ RaceCoins = 85 }, -- 1º → 100 total
 	{ RaceCoins = 45 }, -- 2º → 60 total

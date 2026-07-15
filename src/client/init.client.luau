@@ -6,6 +6,7 @@
 	resultados no fim. Tudo dirigido pelo RemoteEvent RaceState.
 ]]
 
+local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -14,9 +15,12 @@ local TweenService = game:GetService("TweenService")
 
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RaceConfig = require(ReplicatedStorage.Shared.RaceConfig)
+local TrackQuality = require(script.TrackQuality)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+
+TrackQuality.Start()
 
 -- ── "Juice": sons + efeitos de câmera + confete ────────────────────────
 local BASE_FOV = 70
@@ -151,13 +155,17 @@ center.TextColor3 = Color3.fromRGB(255, 255, 255)
 center.Text = ""
 center.Visible = false
 withStroke(center, 4)
+local centerConstraint = Instance.new("UITextSizeConstraint")
+centerConstraint.MaxTextSize = 96
+centerConstraint.MinTextSize = 24
+centerConstraint.Parent = center
 center.Parent = gui
 
 -- Cronômetro no topo.
 local timer = Instance.new("TextLabel")
 timer.Name = "Timer"
 timer.AnchorPoint = Vector2.new(0.5, 0)
-timer.Position = UDim2.fromScale(0.5, 0.04)
+timer.Position = UDim2.new(0.5, 0, 0.04, 0)
 timer.Size = UDim2.fromScale(0.2, 0.08)
 timer.BackgroundTransparency = 1
 timer.Font = Enum.Font.FredokaOne
@@ -166,6 +174,10 @@ timer.TextColor3 = Color3.fromRGB(255, 255, 255)
 timer.Text = ""
 timer.Visible = false
 withStroke(timer, 3)
+local timerConstraint = Instance.new("UITextSizeConstraint")
+timerConstraint.MaxTextSize = 48
+timerConstraint.MinTextSize = 14
+timerConstraint.Parent = timer
 timer.Parent = gui
 
 -- Banner "Voltando para o Lobby" (contagem ao cruzar a chegada).
@@ -185,6 +197,10 @@ local returnCorner = Instance.new("UICorner")
 returnCorner.CornerRadius = UDim.new(0, 14)
 returnCorner.Parent = returnBanner
 withStroke(returnBanner, 3)
+local returnBannerConstraint = Instance.new("UITextSizeConstraint")
+returnBannerConstraint.MaxTextSize = 56
+returnBannerConstraint.MinTextSize = 16
+returnBannerConstraint.Parent = returnBanner
 returnBanner.Parent = gui
 
 -- Quadro de resultados.
@@ -206,6 +222,10 @@ resultsTitle.Font = Enum.Font.FredokaOne
 resultsTitle.TextScaled = true
 resultsTitle.TextColor3 = Color3.fromRGB(255, 215, 0)
 resultsTitle.Text = "🏁 Resultado"
+local resultsTitleConstraint = Instance.new("UITextSizeConstraint")
+resultsTitleConstraint.MaxTextSize = 48
+resultsTitleConstraint.MinTextSize = 16
+resultsTitleConstraint.Parent = resultsTitle
 resultsTitle.Parent = results
 
 local resultsList = Instance.new("Frame")
@@ -939,6 +959,10 @@ local function buildResults(standings)
 		none.TextScaled = true
 		none.TextColor3 = Color3.fromRGB(220, 220, 220)
 		none.Text = "Ninguém chegou 😅"
+		local noneConstraint = Instance.new("UITextSizeConstraint")
+		noneConstraint.MaxTextSize = 28
+		noneConstraint.MinTextSize = 12
+		noneConstraint.Parent = none
 		none.Parent = resultsList
 		return
 	end
@@ -948,6 +972,10 @@ local function buildResults(standings)
 		row.BackgroundTransparency = 1
 		row.Font = Enum.Font.GothamBold
 		row.TextScaled = true
+		local rowConstraint = Instance.new("UITextSizeConstraint")
+		rowConstraint.MaxTextSize = 24
+		rowConstraint.MinTextSize = 10
+		rowConstraint.Parent = row
 		row.TextXAlignment = Enum.TextXAlignment.Left
 		row.LayoutOrder = i
 		local medal = if entry.place == 1
@@ -1110,6 +1138,10 @@ rankTitle.Font = Enum.Font.FredokaOne
 rankTitle.TextScaled = true
 rankTitle.TextColor3 = Color3.fromRGB(255, 224, 130)
 rankTitle.Text = "🏁 Posições"
+local rankTitleConstraint = Instance.new("UITextSizeConstraint")
+rankTitleConstraint.MaxTextSize = 22
+rankTitleConstraint.MinTextSize = 10
+rankTitleConstraint.Parent = rankTitle
 rankTitle.Parent = rankPanel
 
 local rankList = Instance.new("Frame")
@@ -1239,7 +1271,7 @@ end
 local progBar = Instance.new("Frame")
 progBar.Name = "Progress"
 progBar.AnchorPoint = Vector2.new(0.5, 0)
-progBar.Position = UDim2.fromScale(0.5, 0.04)
+progBar.Position = UDim2.new(0.5, 0, 0.04, 0)
 progBar.Size = UDim2.fromScale(0.46, 0.036)
 progBar.BackgroundColor3 = Color3.fromRGB(16, 20, 36)
 progBar.BackgroundTransparency = 0.25
@@ -1310,3 +1342,28 @@ Remotes.RaceShield.OnClientEvent:Connect(function()
 	playSound(RaceConfig.Sounds.Shield)
 	showPosToast("🛡️ Escudo!", Color3.fromRGB(120, 220, 255))
 end)
+
+-- ── Safe-area (notch/status bar) ────────────────────────────────────────
+-- A ScreenGui usa IgnoreGuiInset = true (HUD ocupa a tela toda, sem a topbar
+-- do Roblox), então em celulares com notch/status bar os elementos colados no
+-- topo (Timer e Progress bar) precisam de um respiro manual — senão ficam
+-- atrás da área de sistema. GuiService:GetGuiInset() dá essa altura.
+local function getTopInset(): number
+	local ok, topLeftInset = pcall(function()
+		return GuiService:GetGuiInset()
+	end)
+	return (ok and typeof(topLeftInset) == "Vector2") and topLeftInset.Y or 0
+end
+
+local function applyTopSafeArea()
+	local inset = getTopInset()
+	timer.Position = UDim2.new(0.5, 0, 0.04, inset)
+	progBar.Position = UDim2.new(0.5, 0, 0.04, inset)
+end
+
+applyTopSafeArea()
+-- Recalcula ao girar a tela (mobile) ou mudar a resolução (o inset muda de tamanho).
+local currentCamera = workspace.CurrentCamera
+if currentCamera then
+	currentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(applyTopSafeArea)
+end
