@@ -71,6 +71,9 @@ function MapBuilder.Build(): Model
 		segment.Material = f.Material
 		segment.TopSurface = topSurface
 		segment.BottomSurface = Enum.SurfaceType.Smooth
+		-- Não tem nada embaixo do chão pra receber sombra dele; poupa o custo
+		-- de sombra em cima de uma laje enorme (bom pra mobile/console).
+		segment.CastShadow = false
 		segment.Parent = model
 
 		if i == 1 then
@@ -108,6 +111,10 @@ function MapBuilder.Build(): Model
 				wall.Material = w.Material
 				wall.TopSurface = Enum.SurfaceType.Smooth
 				wall.BottomSurface = Enum.SurfaceType.Smooth
+				-- Paredes de 400 de altura ao longo dos 6000 studs seriam a maior
+				-- fonte de custo de sombra do mapa; puramente visual, sem sombra
+				-- projetada elas continuam lendo bem (mapa colorido e bem iluminado).
+				wall.CastShadow = false
 				wall.Parent = folder
 			end
 		end
@@ -144,6 +151,7 @@ function MapBuilder.Build(): Model
 			wall.Material = w.Material
 			wall.TopSurface = Enum.SurfaceType.Smooth
 			wall.BottomSurface = Enum.SurfaceType.Smooth
+			wall.CastShadow = false
 			wall.Parent = folder
 		end
 	end
