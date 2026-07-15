@@ -111,6 +111,31 @@ RaceConfig.Elements = {
 		PlayerCooldown = 0.8,
 		Color = Color3.fromRGB(150, 220, 255),
 	},
+	-- 🛡️ Escudo: PLACA flutuante (igual ao boost) que dá IMUNIDADE às armadilhas por N segundos.
+	-- SÓ pro PRIMEIRO que atravessar (consome/some). Enquanto ativo, lentidão/rolo/ventilador/
+	-- barra giratória não afetam o player (mostra um ForceField em volta dele).
+	Shield = {
+		Count = 6,
+		Duration = 6,
+		Color = Color3.fromRGB(80, 200, 255),
+		Size = Vector3.new(16, 9, 0.6), -- mesma placa flutuante do boost
+		FloatY = 6,
+		Symbol = "🛡️",
+	},
+	-- 🎡 Barra giratória: braço que gira no plano horizontal (eixo Y) varrendo a pista.
+	-- Encostou = empurrão pra TRÁS (reusa a força do jump pad, como o rolo) + lentidão curta.
+	-- Exige timing: passe quando o braço estiver alinhado com a direção da corrida.
+	Spinner = {
+		Count = 6,
+		ArmLength = 340, -- comprimento total do braço (varre a largura)
+		Thickness = 10, -- espessura do braço
+		Height = 14,
+		RotationTime = 3.0, -- tempo de uma volta completa (menor = gira mais rápido)
+		SlowMultiplier = 0.6, -- -40% por um tiquinho ao encostar
+		SlowDuration = 1.2,
+		PlayerCooldown = 1.0,
+		Color = Color3.fromRGB(200, 90, 255),
+	},
 }
 
 -- PlaceId do JOGO PRINCIPAL / lobby (pra onde os players voltam no fim da corrida).
@@ -121,15 +146,24 @@ RaceConfig.MainPlaceId = 90667727140026
 -- A entrega é cross-place: a corrida grava um "prêmio pendente" num DataStore e o LOBBY
 -- entrega quando o player volta (ver PrizeService + o RaceRewardGrantService no lobby).
 -- IMPORTANTE: TODO finalista (inclusive o pódio) ganha +FinishRaceCoins por completar.
+-- Estes valores são o EXTRA do pódio (somam com o FinishRaceCoins de participação).
+-- Total final: 1º = 85+15 = 100 | 2º = 45+15 = 60 | 3º = 20+15 = 35 | fora do pódio = 15.
+-- (rebalanceado: participação mais generosa pro F2P, razão 1º/participação ~6,7×)
 RaceConfig.PrizeByPlace = {
-	{ RaceCoins = 55 }, -- 1º
-	{ RaceCoins = 30 }, -- 2º
-	{ RaceCoins = 15 }, -- 3º
+	{ RaceCoins = 85 }, -- 1º → 100 total
+	{ RaceCoins = 45 }, -- 2º → 60 total
+	{ RaceCoins = 20 }, -- 3º → 35 total
 }
 
 -- Race Coins que TODO jogador que cruza a linha de chegada ganha (soma com o do pódio).
--- Ex.: 1º = 55 + 5 = 60 | fora do pódio = 5.
-RaceConfig.FinishRaceCoins = 5
+-- Ex.: 1º = 85 + 15 = 100 | fora do pódio = 15.
+RaceConfig.FinishRaceCoins = 15
+
+-- 🏎️ Dashboard do HUD (velocímetro): quantos segmentos o arco de combo mostra no máximo.
+-- Empilhou mais boosts que isso? O arco fica cheio e pulsa "MAX!" em vez de estourar a escala.
+RaceConfig.ComboGauge = {
+	MaxSegments = 8,
+}
 
 -- 🔊 Sons do evento. Cole os SoundIds da sua Toolbox/Library (só o número ou rbxassetid://...).
 -- 0 = sem som (o sistema toca silêncio). O resto do "juice" (efeitos visuais) funciona sem isso.
@@ -138,6 +172,7 @@ RaceConfig.Sounds = {
 	Go = 140419294351439, -- som do "JÁ!" (largada)
 	Boost = 83211426606907, -- ao pegar a placa de velocidade
 	JumpPad = 101314601670996, -- ao usar o jump pad
+	Shield = 0, -- ao pegar o escudo (0 = sem som; cole um SoundId se quiser)
 	Finish = 1844442542, -- ao cruzar a chegada
 	Volume = 0.6,
 }

@@ -187,8 +187,54 @@ local function wireBoost(gate: BasePart, cfg)
 		used = true
 		-- Boost ACUMULÁVEL por tipo: `cfg` é a chave do tipo (SpeedBoost ≠ MegaBoost).
 		-- Mesmo tipo empilha e reseta o timer; tipos diferentes somam com timers próprios.
-		RacerState.AddBoost(player, cfg, cfg.Multiplier, cfg.Duration)
+		RacerState.AddBoost(player, cfg, cfg.Multiplier, cfg.Duration, function(stacksLeft)
+			-- expirou: atualiza contagem + multiplicador restante (barra não reinicia)
+			Remotes.RaceComboState:FireClient(player, stacksLeft, 0, RacerState.GetBoostBonus(player))
+		end)
+		-- coletou: reinicia a barra + manda contagem e multiplicador total atuais
+		Remotes.RaceComboState:FireClient(player, RacerState.GetBoostStacks(player), cfg.Duration, RacerState.GetBoostBonus(player))
 		Remotes.RaceBoostFx:FireClient(player, cfg.Duration) -- efeito de velocidade no cliente
+		gate.CanTouch = false
+		for _, gui in ipairs(gate:GetChildren()) do
+			if gui:IsA("SurfaceGui") then
+				gui.Enabled = false
+			end
+		end
+		TweenService:Create(gate, TweenInfo.new(0.25), { Transparency = 1 }):Play()
+		Debris:AddItem(gate, 0.3)
+	end)
+end
+
+-- 🛡️ Escudo: concede imunidade às armadilhas + mostra o ForceField (visível a todos) por N seg.
+local function grantShield(player: Player, duration: number)
+	RacerState.SetShield(player, duration)
+	local char = player.Character
+	if char then
+		local old = char:FindFirstChildOfClass("ForceField") -- troca o visual se pegou outro
+		if old then
+			old:Destroy()
+		end
+		local ff = Instance.new("ForceField")
+		ff.Visible = true
+		ff.Parent = char
+		Debris:AddItem(ff, duration)
+	end
+	Remotes.RaceShield:FireClient(player, duration) -- cue de HUD/som no cliente
+end
+
+-- Escudo: placa flutuante (igual ao boost), mas dá imunidade. Consome no 1º toque.
+local function wireShield(gate: BasePart, cfg)
+	local used = false
+	gate.Touched:Connect(function(hit)
+		if used then
+			return
+		end
+		local player = playerFromHit(hit)
+		if not player or not RacerState.IsRacer(player) then
+			return
+		end
+		used = true
+		grantShield(player, cfg.Duration)
 		gate.CanTouch = false
 		for _, gui in ipairs(gate:GetChildren()) do
 			if gui:IsA("SurfaceGui") then
@@ -226,6 +272,9 @@ local function wireSlow(pad: BasePart, cfg)
 		local player = playerFromHit(hit)
 		if not player or not RacerState.IsRacer(player) then
 			return
+		end
+		if RacerState.IsShielded(player) then
+			return -- 🛡️ escudo ativo: ignora a armadilha
 		end
 		local now = os.clock()
 		if cooldown[player] and (now - cooldown[player]) < cfg.PlayerCooldown then
@@ -293,6 +342,9 @@ local function makeRoller(cfg, z: number, halfWidth: number, centerX: number, fl
 		if not player or not RacerState.IsRacer(player) then
 			return
 		end
+		if RacerState.IsShielded(player) then
+			return -- 🛡️ escudo ativo: ignora a armadilha
+		end
 		local now = os.clock()
 		if cooldown[player] and (now - cooldown[player]) < cfg.PlayerCooldown then
 			return
@@ -305,6 +357,61 @@ local function makeRoller(cfg, z: number, halfWidth: number, centerX: number, fl
 		RacerState.ApplyMultiplier(player, cfg.SlowMultiplier, cfg.SlowDuration)
 	end)
 	return roller
+end
+
+-- 🎡 Barra giratória: braço que gira no plano horizontal (eixo Y), pivô no centro da pista.
+-- Encostou = empurrão pra TRÁS (como o rolo) + lentidão curta. Exige timing pra passar.
+local function makeSpinner(cfg, z: number, centerX: number, floorTopY: number, parent: Instance, rng: Random)
+	local y = floorTopY + cfg.Height / 2
+	local startAngle = rng:NextNumber(0, 360) -- desincroniza as barras
+
+	local arm = Instance.new("Part")
+	arm.Name = "Spinner"
+	arm.Anchored = true
+	arm.CanCollide = false
+	arm.Size = Vector3.new(cfg.ArmLength, cfg.Height, cfg.Thickness)
+	arm.Color = cfg.Color
+	arm.Material = Enum.Material.Neon
+	arm.CFrame = CFrame.new(centerX, y, z) * CFrame.Angles(0, math.rad(startAngle), 0)
+	arm.TopSurface = Enum.SurfaceType.Smooth
+	arm.BottomSurface = Enum.SurfaceType.Smooth
+	arm.Parent = parent
+
+	local light = Instance.new("PointLight")
+	light.Color = cfg.Color
+	light.Brightness = 1.6
+	light.Range = 14
+	light.Shadows = false
+	light.Parent = arm
+
+	-- Gira sem parar (varre a pista). Tempo levemente diferente por unidade.
+	local rotTime = cfg.RotationTime * rng:NextNumber(0.85, 1.15)
+	TweenService:Create(
+		arm,
+		TweenInfo.new(rotTime, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1),
+		{ Orientation = arm.Orientation + Vector3.new(0, 360, 0) }
+	):Play()
+
+	local cooldown: { [Player]: number } = {}
+	arm.Touched:Connect(function(hit)
+		local player = playerFromHit(hit)
+		if not player or not RacerState.IsRacer(player) then
+			return
+		end
+		if RacerState.IsShielded(player) then
+			return -- 🛡️ escudo ativo: ignora a armadilha
+		end
+		local now = os.clock()
+		if cooldown[player] and (now - cooldown[player]) < cfg.PlayerCooldown then
+			return
+		end
+		cooldown[player] = now
+		-- Empurrão pra TRÁS + lentidão curta (mesma pegada do rolo).
+		local jump = RaceConfig.Elements.JumpPad
+		Remotes.RaceJumpPad:FireClient(player, -jump.ForwardForce, jump.UpForce)
+		RacerState.ApplyMultiplier(player, cfg.SlowMultiplier, cfg.SlowDuration)
+	end)
+	return arm
 end
 
 -- 🏁 Arco de checkpoint: landmark visual que o player atravessa (não bloqueia).
@@ -397,6 +504,9 @@ local function makeSideFan(cfg, position: Vector3, dir: number, parent: Instance
 		if not player or not RacerState.IsRacer(player) then
 			return
 		end
+		if RacerState.IsShielded(player) then
+			return -- 🛡️ escudo ativo: ignora a armadilha
+		end
 		local now = os.clock()
 		if cooldown[player] and (now - cooldown[player]) < cfg.PlayerCooldown then
 			return
@@ -457,6 +567,18 @@ function TrackElements.Generate(): Folder
 		local pos = randomPadPos(cfg.SideFan.Size)
 		local dir = (rng:NextInteger(0, 1) == 0) and -1 or 1
 		makeSideFan(cfg.SideFan, pos, dir, folder)
+	end
+
+	-- 🛡️ Escudo: mesma placa flutuante do boost, dá imunidade às armadilhas.
+	for _ = 1, cfg.Shield.Count do
+		local pos = Vector3.new(rng:NextNumber(b.minX, b.maxX), b.floorTopY + cfg.Shield.FloatY, rng:NextNumber(b.minZ, b.maxZ))
+		wireShield(makeBoostGate(cfg.Shield, pos, folder), cfg.Shield)
+	end
+
+	-- 🎡 Barra giratória: gira no centro da pista varrendo a largura (exige timing).
+	for _ = 1, cfg.Spinner.Count do
+		local z = rng:NextNumber(b.minZ, b.maxZ)
+		makeSpinner(cfg.Spinner, z, b.centerX, b.floorTopY, folder, rng)
 	end
 
 	-- 🏁 Arcos de checkpoint (landmarks fixos em 25/50/75% — combinam com a barra de progresso).

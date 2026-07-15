@@ -65,6 +65,15 @@ local Remotes = {
 	-- Usado pelo rolo móvel (empurra pra trás) e pelo ventilador lateral (empurra pro lado).
 	-- Payload: (vx: number, vy: number, vz: number)  — componentes do impulso em studs/s.
 	RacePush = getRemoteEvent(folder, "RacePush"),
+	-- Combo de boost (Servidor -> Cliente): avisa o dashboard sobre stacks de boost ativos.
+	-- Payload: (stacks: number, duration: number, bonus: number).
+	--   duration > 0 = acabou de coletar um boost (reinicia a barra de tempo no cliente).
+	--   duration == 0 = um tipo de boost expirou (só atualiza a contagem de stacks).
+	--   bonus = fração do bônus total de velocidade (1.5 = +150%), pro chip mostrar o multiplicador.
+	RaceComboState = getRemoteEvent(folder, "RaceComboState"),
+	-- Escudo (Servidor -> Cliente): avisa o cliente que pegou o escudo (cue de HUD/som).
+	-- Payload: (duration: number). O visual em volta do char (ForceField) é criado no servidor.
+	RaceShield = getRemoteEvent(folder, "RaceShield"),
 }
 
 return Remotes
