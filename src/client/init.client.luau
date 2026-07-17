@@ -12,6 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local RaceConfig = require(ReplicatedStorage.Shared.RaceConfig)
@@ -561,22 +562,9 @@ speedUnit.Text = "⚡ studs/s"
 speedUnit.ZIndex = 7
 speedUnit.Parent = hub
 
--- ── Módulo de COMBO: só o chip + halo pulsante azul atrás (sem caixa) ──────
-local comboHeader = Instance.new("TextLabel")
-comboHeader.Name = "ComboHeader"
-comboHeader.AnchorPoint = Vector2.new(0.5, 0)
-comboHeader.Position = UDim2.fromScale(0.5, 0.14)
-comboHeader.Size = UDim2.fromScale(0.8, 0.14)
-comboHeader.BackgroundTransparency = 1
-comboHeader.Font = Enum.Font.GothamBold
-comboHeader.TextScaled = true
-comboHeader.TextColor3 = Color3.fromRGB(120, 180, 255)
-comboHeader.Text = "COMBO"
-comboHeader.ZIndex = 3
-comboHeader.Parent = leftWing
-
--- Halo pulsante atrás do chip (mesmo efeito do velocímetro/boost, em azul).
-local COMBO_W, COMBO_H = 0.8, 0.42
+-- ── Módulo de COMBO: caixa (com "COMBO" DENTRO) + halo pulsante azul atrás ──
+-- Halo pulsante atrás da caixa (mesmo efeito do velocímetro/boost, em azul).
+local COMBO_W, COMBO_H = 0.82, 0.56
 for _, spec in ipairs({
 	{ scale = 1.06, transparency = 0.6 },
 	{ scale = 1.14, transparency = 0.76 },
@@ -603,18 +591,15 @@ for _, spec in ipairs({
 	):Play()
 end
 
-local comboChip = Instance.new("TextLabel")
+-- Caixa do combo (Frame). "COMBO" no topo + "⚡xN" grande embaixo, tudo DENTRO dela.
+local comboChip = Instance.new("Frame")
 comboChip.Name = "ComboChip"
 comboChip.AnchorPoint = Vector2.new(0.5, 0.5)
 comboChip.Position = UDim2.fromScale(0.5, 0.5)
 comboChip.Size = UDim2.fromScale(COMBO_W, COMBO_H)
 comboChip.BackgroundColor3 = Color3.fromRGB(14, 18, 34)
 comboChip.BackgroundTransparency = 0.1
-comboChip.Font = Enum.Font.FredokaOne
-comboChip.TextScaled = true
-comboChip.TextWrapped = true -- permite 2 linhas: contagem + multiplicador
-comboChip.TextColor3 = Color3.fromRGB(120, 200, 255)
-comboChip.Text = "⚡x0"
+comboChip.BorderSizePixel = 0
 comboChip.ZIndex = 3
 Instance.new("UICorner", comboChip).CornerRadius = UDim.new(0, 12)
 local COMBO_STROKE_BLUE = Color3.fromRGB(80, 150, 255)
@@ -623,18 +608,43 @@ comboChipStroke.Color = COMBO_STROKE_BLUE
 comboChipStroke.Thickness = 2
 comboChipStroke.Transparency = 0.35
 comboChipStroke.Parent = comboChip
-local comboChipPad = Instance.new("UIPadding")
-comboChipPad.PaddingTop = UDim.new(0.08, 0)
-comboChipPad.PaddingBottom = UDim.new(0.08, 0)
-comboChipPad.Parent = comboChip
 comboChip.Parent = leftWing
+
+-- "COMBO" dentro da caixa, no topo.
+local comboHeader = Instance.new("TextLabel")
+comboHeader.Name = "ComboHeader"
+comboHeader.AnchorPoint = Vector2.new(0.5, 0)
+comboHeader.Position = UDim2.fromScale(0.5, 0.08)
+comboHeader.Size = UDim2.fromScale(0.82, 0.24)
+comboHeader.BackgroundTransparency = 1
+comboHeader.Font = Enum.Font.GothamBold
+comboHeader.TextScaled = true
+comboHeader.TextColor3 = Color3.fromRGB(120, 180, 255)
+comboHeader.Text = "COMBO"
+comboHeader.ZIndex = 4
+comboHeader.Parent = comboChip
+
+-- Valor do combo (contagem + multiplicador) — parte de baixo da caixa.
+local comboValue = Instance.new("TextLabel")
+comboValue.Name = "ComboValue"
+comboValue.AnchorPoint = Vector2.new(0.5, 1)
+comboValue.Position = UDim2.fromScale(0.5, 0.94)
+comboValue.Size = UDim2.fromScale(0.86, 0.6)
+comboValue.BackgroundTransparency = 1
+comboValue.Font = Enum.Font.FredokaOne
+comboValue.TextScaled = true
+comboValue.TextWrapped = true -- permite 2 linhas: contagem + multiplicador
+comboValue.TextColor3 = Color3.fromRGB(120, 200, 255)
+comboValue.Text = "⚡x0"
+comboValue.ZIndex = 4
+comboValue.Parent = comboChip
 
 -- "MAX!" — badge que aparece (com pulinho) quando o combo bate o teto.
 local maxBadge = Instance.new("TextLabel")
 maxBadge.Name = "MaxBadge"
 maxBadge.AnchorPoint = Vector2.new(0.5, 1)
-maxBadge.Position = UDim2.fromScale(0.5, 0.9)
-maxBadge.Size = UDim2.fromScale(0.8, 0.16)
+maxBadge.Position = UDim2.fromScale(0.5, 0.99)
+maxBadge.Size = UDim2.fromScale(0.8, 0.15)
 maxBadge.BackgroundTransparency = 1
 maxBadge.Font = Enum.Font.FredokaOne
 maxBadge.TextScaled = true
@@ -782,15 +792,15 @@ local function setCombo(stacks: number, bonus: number?)
 	end
 	litUpTo = newLit
 
-	-- Chip: contagem de stacks + multiplicador total de velocidade (ex.: "⚡x3" / "+150%").
+	-- Valor: contagem de stacks + multiplicador total de velocidade (ex.: "⚡x3" / "+150%").
 	local pct = math.floor((tonumber(bonus) or 0) * 100 + 0.5)
 	if shown > 0 then
-		comboChip.Text = pct > 0 and string.format("⚡x%d\n+%d%%", shown, pct) or ("⚡x" .. shown)
-		comboChip.TextColor3 = scaleColor(frac):Lerp(Color3.fromRGB(255, 255, 255), 0.25)
+		comboValue.Text = pct > 0 and string.format("⚡x%d\n+%d%%", shown, pct) or ("⚡x" .. shown)
+		comboValue.TextColor3 = scaleColor(frac):Lerp(Color3.fromRGB(255, 255, 255), 0.25)
 		pulse(comboChip, 1.25, 1, 0.18)
 	else
-		comboChip.Text = "⚡x0"
-		comboChip.TextColor3 = Color3.fromRGB(120, 200, 255)
+		comboValue.Text = "⚡x0"
+		comboValue.TextColor3 = Color3.fromRGB(120, 200, 255)
 	end
 
 	local maxed = shown >= ComboMax
@@ -1361,9 +1371,45 @@ local function applyTopSafeArea()
 	progBar.Position = UDim2.new(0.5, 0, 0.04, inset)
 end
 
+-- ── Layout responsivo por plataforma ────────────────────────────────────
+-- Mesma detecção do TrackQuality: celular = toque sem teclado/mouse; console = ten-foot.
+local function isMobile(): boolean
+	return UserInputService.TouchEnabled
+		and not UserInputService.KeyboardEnabled
+		and not UserInputService.MouseEnabled
+end
+local function isConsole(): boolean
+	local ok, v = pcall(function()
+		return GuiService:IsTenFootInterface()
+	end)
+	return ok and v == true
+end
+
+-- Tamanho-base do dashboard (recalculado por plataforma via Size, não via UIScale —
+-- o UIScale é usado pelo popIn, não dá pra brigar com ele).
+local DASH_W, DASH_H = 0.50, 0.26
+
+local function applyResponsiveLayout()
+	local dashFactor, dashY, rankX = 1, 0.985, 0.99
+	if isConsole() then
+		-- TV: encolhe um pouco e recua das bordas (overscan / safe zone).
+		dashFactor, dashY, rankX = 0.85, 0.93, 0.955
+	elseif isMobile() then
+		-- Celular: menor pra não dominar a tela (e sobra espaço dos controles de toque).
+		dashFactor = 0.8
+	end
+	dashboard.Size = UDim2.fromScale(DASH_W * dashFactor, DASH_H * dashFactor)
+	dashboard.Position = UDim2.fromScale(0.5, dashY)
+	rankPanel.Position = UDim2.new(rankX, 0, 0.46, 0)
+end
+
 applyTopSafeArea()
--- Recalcula ao girar a tela (mobile) ou mudar a resolução (o inset muda de tamanho).
+applyResponsiveLayout()
+-- Recalcula ao girar a tela (mobile) ou mudar a resolução (inset e plataforma podem mudar).
 local currentCamera = workspace.CurrentCamera
 if currentCamera then
-	currentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(applyTopSafeArea)
+	currentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+		applyTopSafeArea()
+		applyResponsiveLayout()
+	end)
 end
