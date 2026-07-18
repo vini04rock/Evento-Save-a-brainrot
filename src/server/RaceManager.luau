@@ -298,6 +298,20 @@ function RaceManager.Start()
 	RaceMissionEvents.Setup()
 	RaceChampion.Setup()
 
+	-- BUGFIX: runSession() só chama RacerState.Init pro snapshot de Players:GetPlayers()
+	-- tirado quando waitForPlayers() termina. Como cada jogador chega por um teleporte
+	-- assíncrono separado, quem chega um instante DEPOIS desse snapshot nunca era
+	-- inicializado: RacerState.IsRacer(player) ficava false pra sempre, e TrackElements
+	-- ignora quem "não corre" (armadilhas/buffs não afetam) — e a velocidade nunca saía
+	-- do padrão do Roblox (16), já que só RacerState.Init aplica a velocidade do jogo
+	-- principal. Corrigido inicializando QUALQUER jogador assim que ele entra no servidor,
+	-- independente do timing do snapshot da sessão.
+	Players.PlayerAdded:Connect(function(player)
+		if not RacerState.IsRacer(player) then
+			RacerState.Init(player, getPlayerRaceSpeed(player))
+		end
+	end)
+
 	-- Retorno robusto: se o teleporte de volta pro lobby FALHAR (init), tenta de novo
 	-- (até MAX_RETURN_RETRIES). Resolve "alguns players não voltaram".
 	TeleportService.TeleportInitFailed:Connect(function(player, _result, errorMessage)
