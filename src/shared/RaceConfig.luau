@@ -13,7 +13,10 @@ local RaceConfig = {}
 RaceConfig.MinPlayers = 1
 
 -- Tempo de "saguão" depois de atingir o mínimo, pra esperar o pessoal chegar.
-RaceConfig.WaitForPlayersSeconds = 5
+-- 40s (era 5s, 2026-07-17): reduz a chance de alguém chegar DEPOIS da foto dos corredores
+-- (ver bugfix do Players.PlayerAdded em RaceManager) — mas o fix real é esse PlayerAdded,
+-- isso aqui só diminui a frequência na prática / deixa mais gente correndo junto.
+RaceConfig.WaitForPlayersSeconds = 40
 
 -- Contagem regressiva antes da largada (3, 2, 1, JÁ!).
 RaceConfig.CountdownSeconds = 3
