@@ -11,6 +11,11 @@
 
 	Velocidade (boost/slow) usa RacerState (relativo à velocidade-base do player).
 	Geometria parenteada numa pasta "TrackElements" no Workspace; Clear() remove tudo.
+
+	Os pads de CHÃO (jump pad, lentidão, ventilador) são quadrados: moldura preta + face
+	neon (detecta o toque) + grafismo (seta/listras) + holograma 3D flutuante. Estilo comum
+	em RaceConfig.PadStyle — ver makeSquarePad. As placas flutuantes (boost/escudo) continuam
+	no makeBoostGate à parte.
 ]]
 
 local Players = game:GetService("Players")
@@ -26,10 +31,6 @@ local RacerState = require(script.Parent.RacerState)
 local TrackElements = {}
 
 local FOLDER_NAME = "TrackElements"
-
--- Altura (studs) em que o ícone do pad flutua acima do chão. Fica na linha do olhar
--- do corredor: alto o bastante pra ler de longe, baixo pra não virar poluição visual.
-local PAD_ICON_FLOAT_Y = 7
 
 local function getBounds()
 	local origin = EventConfig.Origin
@@ -55,105 +56,199 @@ local function playerFromHit(hit: BasePart?): Player?
 	return nil
 end
 
--- Disco de energia: anel neon por fora + miolo escuro, deitado no chão, com o
--- ícone FLUTUANDO acima. Substitui o antigo pad quadrado chapado.
+-- ── Pads QUADRADOS (jump pad, lentidão, ventilador) ───────────────────────────
+-- Carcaça em 3 camadas: moldura preta (base) + face neon (brilha e DETECTA O TOQUE) +
+-- grafismo do chão (SurfaceGui) + holograma 3D flutuando por cima.
 --
--- Por que disco e não quadrado: forma redonda lê como "power-up"; quadrado lê como
--- pedaço de chão.
---
--- Por que o ícone flutua em vez de ficar desenhado no piso: a câmera da corrida olha
--- a pista em ângulo raso, então qualquer desenho deitado achata e some. Um
--- BillboardGui sempre vira pra câmera — lê de qualquer ângulo e distância.
--- (Consequência: NÃO use setas aqui; o billboard gira junto com a câmera, então uma
--- seta apontaria pra tela, não pro mundo. Direção quem mostra é partícula/movimento.)
---
--- Retorna a part que recebe o Touched (o anel).
-local function makeDiscPad(
-	name: string,
-	size: Vector3,
-	color: Color3,
-	symbol: string,
-	position: Vector3,
-	parent: Instance
-): BasePart
-	local diameter = size.X
-	local thickness = math.max(size.Y, 0.6)
-	-- No Roblox o Cylinder se estende no eixo X, então gira 90° em Z pra deitar no chão.
-	local flat = CFrame.Angles(0, 0, math.rad(90))
-	local ringColor = color:Lerp(Color3.new(1, 1, 1), 0.35)
+-- Divisão de papéis (o que resolve a leitura da pista):
+--   • CHÃO (seta/listras, orientado pelo MUNDO) → responde "pra onde vai" / "cuidado".
+--   • HOLOGRAMA 3D (parts Neon, orientado pelo MUNDO) → a seta que aponta a direção REAL.
+-- Por que a seta agora pode existir: a regra antiga ("nada de setas") valia pro billboard,
+-- que gira com a câmera. Uma seta feita de PARTS (chão e holograma) é orientada pelo mundo
+-- e aponta certo de qualquer ângulo.
 
-	local ring = Instance.new("Part")
-	ring.Name = name
-	ring.Shape = Enum.PartType.Cylinder
-	ring.Anchored = true
-	ring.CanCollide = false
-	ring.CastShadow = false
-	ring.Size = Vector3.new(thickness, diameter, diameter)
-	ring.Color = ringColor
-	ring.Material = Enum.Material.Neon
-	ring.CFrame = CFrame.new(position) * flat
-	ring.Parent = parent
+local PadStyle = RaceConfig.PadStyle or {}
 
-	-- Miolo mais escuro e um tico mais grosso: dá o contorno de "botão" e evita
-	-- z-fighting com o anel. Não dispara nada — quem detecta o toque é o anel.
-	local core = Instance.new("Part")
-	core.Name = "Core"
-	core.Shape = Enum.PartType.Cylinder
-	core.Anchored = true
-	core.CanCollide = false
-	core.CanTouch = false
-	core.CastShadow = false
-	core.Size = Vector3.new(thickness * 1.6, diameter * 0.68, diameter * 0.68)
-	core.Color = color:Lerp(Color3.new(0, 0, 0), 0.4)
-	core.Material = Enum.Material.Neon
-	core.CFrame = CFrame.new(position) * flat
-	core.Parent = parent
+-- Desenha o grafismo na face de cima do pad (SurfaceGui = custo zero de parts).
+--   mark = "chevrons" → setas ">>>" (o pad EMPURRA nessa direção; a face é girada pra mundo).
+--   mark = "hazard"   → listras diagonais amarelo/preto + símbolo central (zona de "cuidado").
+local function paintFace(face: BasePart, mark: string, color: Color3, symbol: string?)
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "FaceArt"
+	gui.Face = Enum.NormalId.Top
+	gui.LightInfluence = 0
+	gui.CanvasSize = Vector2.new(400, 400)
+	gui.Parent = face
 
-	-- Ícone flutuante (o que dá legibilidade real de longe).
-	local bb = Instance.new("BillboardGui")
-	bb.Name = "PadIcon"
-	bb.Adornee = ring
-	bb.Size = UDim2.fromOffset(150, 150)
-	bb.StudsOffset = Vector3.new(0, PAD_ICON_FLOAT_Y, 0)
-	bb.MaxDistance = 420 -- não desenha de longe: poupa render em mobile/console
-	bb.Parent = ring
+	if mark == "hazard" then
+		-- Fundo com listras diagonais (UIGradient de transições abruptas = "faixas").
+		local bg = Instance.new("Frame")
+		bg.Size = UDim2.fromScale(1, 1)
+		bg.BackgroundColor3 = PadStyle.HazardColorA or Color3.fromRGB(250, 200, 40)
+		bg.BorderSizePixel = 0
+		bg.Parent = gui
+		local a = PadStyle.HazardColorA or Color3.fromRGB(250, 200, 40)
+		local b = PadStyle.HazardColorB or Color3.fromRGB(22, 22, 26)
+		local grad = Instance.new("UIGradient")
+		grad.Rotation = 45 -- diagonal (listra de perigo clássica)
+		grad.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0.00, a),
+			ColorSequenceKeypoint.new(0.249, a),
+			ColorSequenceKeypoint.new(0.25, b),
+			ColorSequenceKeypoint.new(0.499, b),
+			ColorSequenceKeypoint.new(0.50, a),
+			ColorSequenceKeypoint.new(0.749, a),
+			ColorSequenceKeypoint.new(0.75, b),
+			ColorSequenceKeypoint.new(1.00, b),
+		})
+		grad.Parent = bg
+		-- Símbolo (🐌) por cima das listras, num disco escuro pra destacar.
+		local disc = Instance.new("Frame")
+		disc.AnchorPoint = Vector2.new(0.5, 0.5)
+		disc.Position = UDim2.fromScale(0.5, 0.5)
+		disc.Size = UDim2.fromScale(0.5, 0.5)
+		disc.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+		disc.BackgroundTransparency = 0.15
+		disc.Parent = gui
+		Instance.new("UICorner", disc).CornerRadius = UDim.new(0.5, 0)
+		local sym = Instance.new("TextLabel")
+		sym.AnchorPoint = Vector2.new(0.5, 0.5)
+		sym.Position = UDim2.fromScale(0.5, 0.5)
+		sym.Size = UDim2.fromScale(0.8, 0.8)
+		sym.BackgroundTransparency = 1
+		sym.Font = Enum.Font.FredokaOne
+		sym.Text = symbol or "🐌"
+		sym.TextScaled = true
+		sym.TextColor3 = Color3.fromRGB(255, 255, 255)
+		sym.Parent = disc
+	else
+		-- Chevrons ">>>" apontando pra frente da FACE. A face inteira é girada (yaw) na
+		-- criação pra apontar no sentido do mundo, então o desenho é sempre o mesmo.
+		local chev = Instance.new("TextLabel")
+		chev.AnchorPoint = Vector2.new(0.5, 0.5)
+		chev.Position = UDim2.fromScale(0.5, 0.5)
+		chev.Size = UDim2.fromScale(0.92, 0.5)
+		chev.BackgroundTransparency = 1
+		chev.Font = Enum.Font.FredokaOne
+		chev.Text = "❯❯❯"
+		chev.TextScaled = true
+		chev.TextColor3 = Color3.fromRGB(255, 255, 255)
+		chev.Rotation = PadStyle.ChevronYaw or 0 -- ajuste fino no Studio (ver PadStyle)
+		chev.Parent = gui
+		local chevStroke = Instance.new("UIStroke")
+		chevStroke.Color = color:Lerp(Color3.new(0, 0, 0), 0.5)
+		chevStroke.Thickness = 3
+		chevStroke.Parent = chev
+	end
+end
 
-	local badge = Instance.new("Frame")
-	badge.Name = "Badge"
-	badge.AnchorPoint = Vector2.new(0.5, 0.5)
-	badge.Position = UDim2.fromScale(0.5, 0.5)
-	badge.Size = UDim2.fromScale(1, 1)
-	badge.BackgroundColor3 = Color3.fromRGB(12, 14, 24)
-	badge.BackgroundTransparency = 0.25
-	badge.Parent = bb
-	local badgeCorner = Instance.new("UICorner")
-	badgeCorner.CornerRadius = UDim.new(0.5, 0) -- círculo
-	badgeCorner.Parent = badge
-	local badgeStroke = Instance.new("UIStroke")
-	badgeStroke.Color = ringColor
-	badgeStroke.Thickness = 4
-	badgeStroke.Parent = badge
+-- Holograma 3D flutuante feito de parts Neon (orientado pelo mundo → aponta CERTO sempre).
+--   shape = "arrow" → seta (haste + 2 aletas em ∧) apontando pra `dir` (unit, no mundo).
+--   shape = "x"     → X (2 barras cruzadas) — pro pad de lentidão, que não tem direção.
+-- Todas as parts são Anchored/CanTouch=false (não disparam o pad) e sobem/descem juntas (bob).
+local function makeHolo(shape: string, dir: Vector3, position: Vector3, color: Color3, parent: Instance)
+	local floatY = PadStyle.HoloFloatY or 7
+	local bob = PadStyle.HoloBob or 0.7
+	local thick = PadStyle.HoloThickness or 1.4
+	local len = PadStyle.HoloArrowLength or 7
+	local center = position + Vector3.new(0, floatY, 0)
+	local parts = {}
 
-	local label = Instance.new("TextLabel")
-	label.Name = "Symbol"
-	label.AnchorPoint = Vector2.new(0.5, 0.5)
-	label.Position = UDim2.fromScale(0.5, 0.5)
-	label.Size = UDim2.fromScale(0.72, 0.72)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.FredokaOne
-	label.Text = symbol
-	label.TextScaled = true
-	label.TextColor3 = Color3.fromRGB(255, 255, 255)
-	label.Parent = badge
+	local function neon(size: Vector3, cf: CFrame)
+		local p = Instance.new("Part")
+		p.Name = "Holo"
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Material = Enum.Material.Neon
+		p.Color = color
+		p.Transparency = 0.1
+		p.Size = size
+		p.CFrame = cf
+		p.Parent = parent
+		table.insert(parts, p)
+	end
 
-	-- Pulso lento no anel: faz o pad parecer "vivo" em vez de decoração parada.
+	if shape == "x" then
+		local base = CFrame.new(center)
+		neon(Vector3.new(len, thick, thick), base * CFrame.Angles(0, 0, math.rad(45)))
+		neon(Vector3.new(len, thick, thick), base * CFrame.Angles(0, 0, math.rad(-45)))
+	else
+		-- lookAt: o -Z da part aponta pra `dir`. Haste ao longo desse eixo, ponta na frente.
+		local look = CFrame.lookAt(center, center + dir)
+		neon(Vector3.new(thick, thick, len), look) -- haste
+		local tip = look * CFrame.new(0, 0, -len / 2) -- ponta (frente = -Z)
+		local fin = len * 0.55
+		-- Duas aletas abrindo pra trás a partir da ponta, formando o ∧.
+		neon(Vector3.new(thick, thick, fin), tip * CFrame.Angles(0, math.rad(35), 0) * CFrame.new(0, 0, fin / 2))
+		neon(Vector3.new(thick, thick, fin), tip * CFrame.Angles(0, math.rad(-35), 0) * CFrame.new(0, 0, fin / 2))
+	end
+
+	-- Bob: sobe/desce de leve. Tweens com o MESMO TweenInfo começam no mesmo frame → sincronizados.
+	local info = TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+	for _, p in ipairs(parts) do
+		TweenService:Create(p, info, { CFrame = p.CFrame + Vector3.new(0, bob, 0) }):Play()
+	end
+end
+
+-- Monta um pad quadrado completo. `opts`:
+--   color       = cor da face neon
+--   floorMark   = "chevrons" | "hazard"
+--   symbol      = símbolo central (usado no "hazard", ex.: 🐌)
+--   holo        = "arrow" | "x" | nil (holograma 3D flutuante)
+--   dir         = direção do empurrão no mundo (unit) — orienta a face E a seta 3D
+-- Retorna a FACE (a part que recebe o Touched).
+local function makeSquarePad(name: string, cfg, opts, position: Vector3, parent: Instance): BasePart
+	local dim = cfg.Size.X
+	local frameThk = PadStyle.FrameThickness or 1.4
+	local inset = PadStyle.FaceInset or 0.86
+	-- Gira o pad inteiro pra os chevrons apontarem no sentido do mundo (dir).
+	-- yaw = ângulo entre +Z e dir: dir=(0,0,1)→0° | dir=(1,0,0)→90° | dir=(-1,0,0)→-90°.
+	local dir = opts.dir or Vector3.new(0, 0, 1)
+	local yaw = math.deg(math.atan2(dir.X, dir.Z))
+	local base = CFrame.new(position) * CFrame.Angles(0, math.rad(yaw), 0)
+
+	-- Moldura preta (base larga, escura, fosca) — o contraste das referências.
+	local frame = Instance.new("Part")
+	frame.Name = name
+	frame.Anchored = true
+	frame.CanCollide = false
+	frame.CanTouch = false
+	frame.CastShadow = false
+	frame.Size = Vector3.new(dim, frameThk, dim)
+	frame.Color = PadStyle.FrameColor or Color3.fromRGB(10, 10, 14)
+	frame.Material = Enum.Material.SmoothPlastic
+	frame.CFrame = base
+	frame.Parent = parent
+
+	-- Face neon (encaixada dentro da moldura, levemente saliente). RECEBE O TOQUE.
+	local face = Instance.new("Part")
+	face.Name = "Face"
+	face.Anchored = true
+	face.CanCollide = false
+	face.CastShadow = false
+	face.Size = Vector3.new(dim * inset, frameThk * 1.1, dim * inset)
+	face.Color = opts.color
+	face.Material = Enum.Material.Neon
+	face.Transparency = PadStyle.FaceTransparency or 0.12
+	face.CFrame = base * CFrame.new(0, frameThk * 0.15, 0)
+	face.Parent = parent
+
+	paintFace(face, opts.floorMark or "chevrons", opts.color, opts.symbol)
+
+	-- Pulso suave na face: faz o pad parecer "vivo".
 	TweenService:Create(
-		ring,
+		face,
 		TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
-		{ Transparency = 0.35 }
+		{ Transparency = math.min(1, (PadStyle.FaceTransparency or 0.12) + 0.28) }
 	):Play()
 
-	return ring
+	if opts.holo then
+		makeHolo(opts.holo, dir, position, opts.color, parent)
+	end
+
+	return face
 end
 
 -- 🟢 Boost: PLACA flutuante semitransparente com símbolo de velocidade (o player atravessa).
@@ -560,9 +655,14 @@ end
 
 -- 💨 Ventilador lateral: pad no chão que sopra o player pro lado (dir = -1 ou +1 no eixo X).
 local function makeSideFan(cfg, position: Vector3, dir: number, parent: Instance): BasePart
-	-- A DIREÇÃO do sopro quem mostra é a partícula de vento logo abaixo (ela usa
-	-- Acceleration em coordenadas de mundo, então aponta certo sempre).
-	local pad = makeDiscPad("SideFan", cfg.Size, cfg.Color, tostring(cfg.Symbol or "💨"), position, parent)
+	-- Pad quadrado com seta (chão + holograma 3D) apontando pro lado que sopra. A partícula
+	-- de vento (abaixo) reforça a direção. `dir` no eixo X vira o vetor-mundo do empurrão.
+	local pad = makeSquarePad("SideFan", cfg, {
+		color = cfg.Color,
+		floorMark = "chevrons",
+		holo = "arrow",
+		dir = Vector3.new(dir, 0, 0),
+	}, position, parent)
 
 	local light = Instance.new("PointLight")
 	light.Color = cfg.Color
@@ -571,10 +671,10 @@ local function makeSideFan(cfg, position: Vector3, dir: number, parent: Instance
 	light.Shadows = false
 	light.Parent = pad
 
-	-- O disco é um Cylinder DEITADO (girado 90°), e EmissionDirection é relativo à
-	-- part — direto nele, o vento sairia pra cima. Este Attachment tem WorldCFrame
-	-- sem rotação, então os eixos do emitter voltam a bater com os do mundo
-	-- (Right = +X) independente de como o disco esteja girado.
+	-- A face do pad é GIRADA (yaw) pra a seta apontar pro lado certo, e EmissionDirection
+	-- é relativo à part — direto nela, o vento sairia torto. Este Attachment tem WorldCFrame
+	-- sem rotação, então os eixos do emitter voltam a bater com os do mundo (Right = +X)
+	-- independente de como a face esteja girada.
 	local windOrigin = Instance.new("Attachment")
 	windOrigin.Name = "WindOrigin"
 	windOrigin.Parent = pad
@@ -638,12 +738,24 @@ function TrackElements.Generate(): Folder
 	end
 	for _ = 1, cfg.JumpPad.Count do
 		local c = cfg.JumpPad
-		local pad = makeDiscPad("JumpPad", c.Size, c.Color, tostring(c.Symbol or "🚀"), randomPadPos(c.Size), folder)
+		-- 🚀 Empurra sempre pra FRENTE (+Z): seta no chão + holograma 3D apontando pra chegada.
+		local pad = makeSquarePad("JumpPad", c, {
+			color = c.Color,
+			floorMark = "chevrons",
+			holo = "arrow",
+			dir = Vector3.new(0, 0, 1),
+		}, randomPadPos(c.Size), folder)
 		wireJumpPad(pad, c)
 	end
 	for _ = 1, cfg.Slow.Count do
 		local c = cfg.Slow
-		local pad = makeDiscPad("SlowPad", c.Size, c.Color, tostring(c.Symbol or "🐌"), randomPadPos(c.Size), folder)
+		-- 🐌 Sem direção: listras de perigo + 🐌 no chão, e um X neon 3D flutuando ("zona ruim").
+		local pad = makeSquarePad("SlowPad", c, {
+			color = c.Color,
+			floorMark = "hazard",
+			symbol = tostring(c.Symbol or "🐌"),
+			holo = "x",
+		}, randomPadPos(c.Size), folder)
 		wireSlow(pad, c)
 	end
 
@@ -679,18 +791,23 @@ function TrackElements.Generate(): Folder
 		wireShield(makeBoostGate(cfg.Shield, pos, folder), cfg.Shield)
 	end
 
-	-- 🎡 Barra giratória: gira no centro da pista varrendo a largura (exige timing).
-	for _ = 1, cfg.Spinner.Count do
-		local z = rng:NextNumber(b.minZ, b.maxZ)
+	-- Checkpoints da corrida (frações do percurso): FONTE ÚNICA usada pelos ARCOS de %
+	-- E pelas BARRAS GIRATÓRIAS. Assim cada arco tem sua barra bem ali, sempre em sincronia
+	-- (mude a lista e os dois acompanham juntos). Fora do fully-random = nunca se sobrepõem.
+	local totalLen = EventConfig.GetTotalLength()
+	local checkpointFracs = cfg.Checkpoints or { 0.25, 0.5, 0.75 }
+
+	-- 🎡 Barra giratória: uma em cada checkpoint (o arco marca; a barra é o obstáculo ali).
+	for _, frac in ipairs(checkpointFracs) do
+		local z = EventConfig.Origin.Z + totalLen * frac
 		makeSpinner(cfg.Spinner, z, b.centerX, b.floorTopY, folder, rng)
 	end
 
-	-- 🏁 Arcos de checkpoint (landmarks fixos em 25/50/75% — combinam com a barra de progresso).
+	-- 🏁 Arcos de checkpoint (landmarks nos mesmos pontos das barras — casam com a barra de progresso).
 	-- Altura do arco = 60% da parede lateral, pra o número ficar bem acima da metade (não colado no chão).
-	local totalLen = EventConfig.GetTotalLength()
 	local wallHeight = (EventConfig.Walls and EventConfig.Walls.Height) or 400
 	local archPillarH = wallHeight * 0.6
-	for _, frac in ipairs({ 0.25, 0.5, 0.75 }) do
+	for _, frac in ipairs(checkpointFracs) do
 		local z = EventConfig.Origin.Z + totalLen * frac
 		makeArch(z, halfWidth, b.floorTopY, archPillarH, string.format("%d%%", math.floor(frac * 100)), folder)
 	end

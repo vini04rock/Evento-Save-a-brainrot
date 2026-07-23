@@ -47,11 +47,41 @@ RaceConfig.ResultsSeconds = 8
 -- 🔣 Symbol: ícone que flutua acima do pad (BillboardGui sempre virado pra câmera).
 -- Use símbolos SEM direção — o billboard gira junto com a câmera, então uma seta
 -- apontaria pra tela, não pro mundo. Direção quem mostra é a partícula/o movimento.
+-- 🎨 ESTILO COMPARTILHADO dos pads QUADRADOS (jump pad, lentidão, ventilador).
+-- Todos usam a mesma "carcaça": moldura preta (base) + face neon (o que brilha e detecta
+-- o toque) + holograma 3D flutuando por cima. Mude aqui e os três mudam juntos.
+RaceConfig.PadStyle = {
+	FrameColor = Color3.fromRGB(10, 10, 14), -- moldura preta em volta da face (contraste)
+	FrameThickness = 1.4, -- altura da carcaça (eixo Y) — baixinha, o player passa por cima
+	FaceInset = 0.86, -- a face neon ocupa N% do quadrado (o resto vira a borda preta)
+	FaceTransparency = 0.12, -- opacidade da face (0 = sólido, 1 = invisível)
+	-- Holograma 3D (seta pra jump/ventilador; X pro slow), montado com parts Neon leves.
+	HoloFloatY = 7, -- altura do holograma acima do chão do pad
+	HoloBob = 0.7, -- quanto o holograma sobe/desce flutuando (amplitude)
+	HoloThickness = 1.4, -- grossura das barras do holograma
+	HoloArrowLength = 7, -- comprimento da haste da seta
+	-- Listras de perigo (só o pad de lentidão): amarelo/preto diagonal (linguagem "cuidado").
+	HazardColorA = Color3.fromRGB(250, 200, 40), -- amarelo
+	HazardColorB = Color3.fromRGB(22, 22, 26), -- preto
+	-- Ajuste fino no Studio: se os chevrons (setas do chão) apontarem pro lado errado,
+	-- gire de 90 em 90 (0 / 90 / 180 / 270) até baterem com o holograma 3D (que é sempre certo).
+	ChevronYaw = 0,
+}
+
 RaceConfig.Elements = {
 	RandomLayout = true,
 	SafeStartStuds = 300, -- não coloca nada nos primeiros N studs (depois da largada)
 	SafeFinishStuds = 300, -- nem nos últimos N studs (antes da chegada)
-	LaneMargin = 70, -- folga das paredes ao posicionar no eixo X
+	-- Folga das paredes ao sortear o X dos pads. Alcance = ±(Floor.Width/2 − LaneMargin).
+	-- 25 (era 70): os pads têm ~10 de "raio", então 70 era folga demais e deixava uma faixa
+	-- morta de 70 studs em cada parede — tudo parecia amontoado no meio. Com 25 eles espalham
+	-- por quase toda a largura (borda do pad a ~15 studs da parede). Aumente se encostarem.
+	LaneMargin = 25,
+
+	-- Checkpoints da corrida (frações do percurso, 0..1). FONTE ÚNICA: os ARCOS de % e as
+	-- BARRAS GIRATÓRIAS nascem exatamente nesses pontos (cada arco tem sua barra ali).
+	-- Mude/adicione frações e os dois acompanham juntos, sempre espaçados (nunca sobrepõem).
+	Checkpoints = { 0.25, 0.5, 0.75 },
 
 	-- 🟢 Bônus: PLACA flutuante semitransparente com símbolo de velocidade (o player atravessa).
 	-- +50% de velocidade por 3s. SÓ pro PRIMEIRO que atravessar (consome/some).
@@ -120,7 +150,10 @@ RaceConfig.Elements = {
 	-- Direção sorteada por ventilador. Usa o empurrão no cliente (RacePush), como o jump pad.
 	SideFan = {
 		Count = 10,
-		Size = Vector3.new(10, 1, 10),
+		-- 20×20 (era 10): quadrado igual aos outros pads, pra a moldura + seta ficarem legíveis.
+		-- Consequência ACEITA: a área de efeito fica ~5× maior (disco Ø10 → quadrado 20×20),
+		-- então a pista fica mais caótica/imprevisível — decisão de balanceamento, não só visual.
+		Size = Vector3.new(20, 1, 20),
 		SideForce = 216, -- empurrão lateral (studs/s) — +80% (era 120)
 		UpForce = 8, -- só pra "destacar" do chão e o empurrão pegar
 		PlayerCooldown = 0.8,
@@ -142,7 +175,8 @@ RaceConfig.Elements = {
 	-- Encostou = empurrão pra TRÁS (reusa a força do jump pad, como o rolo) + lentidão curta.
 	-- Exige timing: passe quando o braço estiver alinhado com a direção da corrida.
 	Spinner = {
-		Count = 6,
+		-- Sem Count: nasce UMA barra em cada checkpoint (ver Elements.Checkpoints acima) —
+		-- hoje 3 (25/50/75%), cada uma bem no arco. Quer mais/menos? Mexa na lista Checkpoints.
 		ArmLength = 340, -- comprimento total do braço (varre a largura)
 		Thickness = 10, -- espessura do braço
 		Height = 14,

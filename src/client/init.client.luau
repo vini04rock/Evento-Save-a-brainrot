@@ -764,6 +764,79 @@ fuelText.ZIndex = 3
 withStroke(fuelText, 2)
 fuelText.Parent = rightWing
 
+-- ── Indicador de ESCUDO (🛡️) ────────────────────────────────────────────
+-- Espelha a barra de boost, mas pro escudo: pílula com ícone + barra que esvazia +
+-- segundos restantes. Aparece SÓ enquanto o escudo está ativo e some sozinho no fim.
+-- Fica logo acima do dashboard, centralizado (reposicionado por plataforma mais abaixo).
+local SHIELD_CYAN = Color3.fromRGB(90, 205, 255)
+
+local shieldChip = Instance.new("Frame")
+shieldChip.Name = "ShieldChip"
+shieldChip.AnchorPoint = Vector2.new(0.5, 1)
+shieldChip.Position = UDim2.fromScale(0.5, 0.70)
+shieldChip.Size = UDim2.fromScale(0.2, 0.052)
+shieldChip.BackgroundColor3 = Color3.fromRGB(10, 22, 34)
+shieldChip.BackgroundTransparency = 0.12
+shieldChip.BorderSizePixel = 0
+shieldChip.Visible = false
+Instance.new("UICorner", shieldChip).CornerRadius = UDim.new(1, 0)
+local shieldStroke = Instance.new("UIStroke")
+shieldStroke.Color = SHIELD_CYAN
+shieldStroke.Thickness = 2
+shieldStroke.Transparency = 0.15
+shieldStroke.Parent = shieldChip
+shieldChip.Parent = gui
+
+local shieldIcon = Instance.new("TextLabel")
+shieldIcon.Name = "Icon"
+shieldIcon.AnchorPoint = Vector2.new(0, 0.5)
+shieldIcon.Position = UDim2.fromScale(0.03, 0.5)
+shieldIcon.Size = UDim2.fromScale(0.22, 0.82)
+shieldIcon.BackgroundTransparency = 1
+shieldIcon.Font = Enum.Font.FredokaOne
+shieldIcon.Text = "🛡️"
+shieldIcon.TextScaled = true
+shieldIcon.TextColor3 = Color3.fromRGB(255, 255, 255)
+shieldIcon.Parent = shieldChip
+
+local shieldTrack = Instance.new("Frame")
+shieldTrack.Name = "Track"
+shieldTrack.AnchorPoint = Vector2.new(0, 0.5)
+shieldTrack.Position = UDim2.fromScale(0.28, 0.5)
+shieldTrack.Size = UDim2.fromScale(0.48, 0.34)
+shieldTrack.BackgroundColor3 = Color3.fromRGB(6, 14, 22)
+shieldTrack.BackgroundTransparency = 0.2
+shieldTrack.BorderSizePixel = 0
+shieldTrack.ClipsDescendants = true
+Instance.new("UICorner", shieldTrack).CornerRadius = UDim.new(1, 0)
+shieldTrack.Parent = shieldChip
+
+local shieldFill = Instance.new("Frame")
+shieldFill.Name = "Fill"
+shieldFill.AnchorPoint = Vector2.new(0, 0.5)
+shieldFill.Position = UDim2.fromScale(0, 0.5)
+shieldFill.Size = UDim2.fromScale(1, 1)
+shieldFill.BackgroundColor3 = SHIELD_CYAN
+shieldFill.BorderSizePixel = 0
+Instance.new("UICorner", shieldFill).CornerRadius = UDim.new(1, 0)
+local shieldGrad = Instance.new("UIGradient")
+shieldGrad.Color = ColorSequence.new(Color3.fromRGB(160, 235, 255), Color3.fromRGB(60, 170, 255))
+shieldGrad.Parent = shieldFill
+shieldFill.Parent = shieldTrack
+
+local shieldSeconds = Instance.new("TextLabel")
+shieldSeconds.Name = "Seconds"
+shieldSeconds.AnchorPoint = Vector2.new(1, 0.5)
+shieldSeconds.Position = UDim2.fromScale(0.97, 0.5)
+shieldSeconds.Size = UDim2.fromScale(0.22, 0.82)
+shieldSeconds.BackgroundTransparency = 1
+shieldSeconds.Font = Enum.Font.FredokaOne
+shieldSeconds.TextScaled = true
+shieldSeconds.TextColor3 = Color3.fromRGB(190, 235, 255)
+shieldSeconds.Text = ""
+withStroke(shieldSeconds, 2)
+shieldSeconds.Parent = shieldChip
+
 -- ── Wiring do Dashboard ─────────────────────────────────────────────────
 local litUpTo = 0
 -- Aplica/tira o "takeover" dourado (combo MAX): borda do pod, halo central e chip.
@@ -848,6 +921,63 @@ local function restartFuel(duration: number)
 	pulse(fuelArea, 1.15, 1, 0.2)
 end
 
+-- ── Escudo: mostra/esconde o indicador com a contagem de imunidade ──────────────
+-- Mesma pegada da barra de boost: a barra esvazia num tween linear pela duração e um
+-- laço leve (token) escreve os segundos e pisca no fim. Token novo a cada coleta cancela
+-- o laço anterior (pegar outro escudo reinicia limpo — o servidor sempre manda a duração cheia).
+local shieldTween: Tween? = nil
+local shieldToken = 0
+
+local function hideShield()
+	shieldToken += 1 -- invalida qualquer laço de contagem em andamento
+	if shieldTween then
+		shieldTween:Cancel()
+		shieldTween = nil
+	end
+	shieldChip.Visible = false
+end
+
+local function startShield(duration: number?)
+	local dur = math.max(0.1, tonumber(duration) or 0)
+	shieldToken += 1
+	local myToken = shieldToken
+
+	shieldChip.Visible = true
+	shieldStroke.Transparency = 0.15
+	pulse(shieldChip, 0.7, 1, 0.25) -- pop de entrada
+
+	shieldFill.Size = UDim2.fromScale(1, 1)
+	if shieldTween then
+		shieldTween:Cancel()
+	end
+	shieldTween = TweenService:Create(
+		shieldFill,
+		TweenInfo.new(dur, Enum.EasingStyle.Linear),
+		{ Size = UDim2.fromScale(0, 1) }
+	)
+	shieldTween:Play()
+
+	local endsAt = os.clock() + dur
+	task.spawn(function()
+		while shieldToken == myToken do
+			local remaining = endsAt - os.clock()
+			if remaining <= 0 then
+				break
+			end
+			shieldSeconds.Text = string.format("%.1fs", remaining)
+			if remaining <= 1.2 then
+				-- Últimos instantes: pisca a borda (mesma linguagem do medidor de boost).
+				local blink = math.sin(os.clock() * 20) * 0.5 + 0.5
+				shieldStroke.Transparency = 0.1 + blink * 0.4
+			end
+			task.wait(0.08)
+		end
+		if shieldToken == myToken then
+			hideShield()
+		end
+	end)
+end
+
 local function resetDashboard()
 	setCombo(0)
 	if fuelTween then
@@ -860,6 +990,7 @@ local function resetDashboard()
 	fuelText.TextColor3 = Color3.fromRGB(120, 140, 170)
 	fuelStroke.Color = FUEL_ACTIVE
 	fuelStroke.Transparency = 0.6
+	hideShield()
 end
 
 Remotes.RaceComboState.OnClientEvent:Connect(function(stacks, duration, bonus)
@@ -1036,6 +1167,11 @@ end
 -- ── Reage às mudanças de fase ──────────────────────────────────────────
 local function onState(payload)
 	local phase = payload.phase
+
+	-- O escudo só vale durante a corrida (fase "go"); qualquer troca de fase o encerra.
+	if phase ~= "go" then
+		hideShield()
+	end
 
 	if phase == "waiting" then
 		results.Visible = false
@@ -1348,9 +1484,10 @@ Remotes.RaceLiveRanking.OnClientEvent:Connect(function(list)
 end)
 
 -- 🛡️ Escudo: som + toast ao pegar (o ForceField em volta do char vem do servidor).
-Remotes.RaceShield.OnClientEvent:Connect(function()
+Remotes.RaceShield.OnClientEvent:Connect(function(duration)
 	playSound(RaceConfig.Sounds.Shield)
 	showPosToast("🛡️ Escudo!", Color3.fromRGB(120, 220, 255))
+	startShield(duration) -- indicador com a contagem de imunidade restante
 end)
 
 -- ── Safe-area (notch/status bar) ────────────────────────────────────────
@@ -1401,6 +1538,11 @@ local function applyResponsiveLayout()
 	dashboard.Size = UDim2.fromScale(DASH_W * dashFactor, DASH_H * dashFactor)
 	dashboard.Position = UDim2.fromScale(0.5, dashY)
 	rankPanel.Position = UDim2.new(rankX, 0, 0.46, 0)
+
+	-- Pílula do escudo: fica logo acima do topo do dashboard e encolhe junto por plataforma.
+	local dashTop = dashY - DASH_H * dashFactor
+	shieldChip.Position = UDim2.fromScale(0.5, dashTop - 0.015)
+	shieldChip.Size = UDim2.fromScale(0.2 * dashFactor, 0.052 * dashFactor)
 end
 
 applyTopSafeArea()
