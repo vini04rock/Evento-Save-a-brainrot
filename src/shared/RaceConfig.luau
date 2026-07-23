@@ -55,17 +55,38 @@ RaceConfig.PadStyle = {
 	FrameThickness = 1.4, -- altura da carcaça (eixo Y) — baixinha, o player passa por cima
 	FaceInset = 0.86, -- a face neon ocupa N% do quadrado (o resto vira a borda preta)
 	FaceTransparency = 0.12, -- opacidade da face (0 = sólido, 1 = invisível)
-	-- Holograma 3D (seta pra jump/ventilador; X pro slow), montado com parts Neon leves.
-	HoloFloatY = 7, -- altura do holograma acima do chão do pad
-	HoloBob = 0.7, -- quanto o holograma sobe/desce flutuando (amplitude)
-	HoloThickness = 1.4, -- grossura das barras do holograma
+	-- Seta 3D flutuante acima do pad (seta pra jump/ventilador; X pro slow).
+	HoloFloatY = 7, -- altura da seta flutuante acima do chão do pad
+	HoloBob = 0.7, -- quanto ela sobe/desce flutuando (amplitude)
+	HoloThickness = 1.4, -- grossura das barras
 	HoloArrowLength = 7, -- comprimento da haste da seta
+	-- Material FOSCO (não Neon): Neon é emissivo, não recebe sombreamento, e sem sombreamento
+	-- as barras viram uma nuvem de luz sem forma — some justo a direção que a peça deveria
+	-- mostrar. Fosco recebe luz/sombra e o ∧ aparece. Quer o brilho de volta? Enum.Material.Neon.
+	HoloMaterial = Enum.Material.SmoothPlastic,
+	-- Quanto escurecer a cor do pad pra montar a seta flutuante (0 = cor crua, 1 = preto).
+	-- O corredor é claro (chão azul-claro, teto de vidro), então azul-claro sobre azul-claro
+	-- sumiria. Escuro recorta contra o fundo — e casa com a seta preta metálica do chão.
+	HoloDarken = 0.4,
+	HoloTransparency = 0, -- 0 = sólido (era 0.1 no tempo do Neon, pra suavizar o brilho)
 	-- Listras de perigo (só o pad de lentidão): amarelo/preto diagonal (linguagem "cuidado").
 	HazardColorA = Color3.fromRGB(250, 200, 40), -- amarelo
 	HazardColorB = Color3.fromRGB(22, 22, 26), -- preto
-	-- Ajuste fino no Studio: se os chevrons (setas do chão) apontarem pro lado errado,
-	-- gire de 90 em 90 (0 / 90 / 180 / 270) até baterem com o holograma 3D (que é sempre certo).
-	ChevronYaw = 0,
+	-- Rotação da SETA DO CHÃO (seta metálica + rastro) dentro da face do pad.
+	--
+	-- Valor MEDIDO em jogo, não deduzido: o mapeamento do canvas de uma SurfaceGui na face
+	-- Top pro espaço local da part não é óbvio, então foi calibrado observando pra onde a
+	-- seta apontava de verdade. Com 90 ela apontava em −X (atravessada na pista); a partir
+	-- desse ponto, cada +90 gira +90° em torno de Y:
+	--     0 → −Z (pra trás)  |  90 → −X  |  180 → +Z (pra chegada) ✅  |  270 → +X
+	--
+	-- Ficou em 0 (apontando pra TRÁS) por muito tempo sem ninguém notar, porque o grafismo
+	-- antigo era branco e sumia no brilho da face Neon. Só apareceu quando a seta virou preta.
+	--
+	-- Referência pra recalibrar, se um dia o mapeamento mudar: o HOLOGRAMA 3D flutuante é
+	-- sempre certo por construção (é feito de parts orientadas pelo mundo). Gire de 90 em 90
+	-- até a seta do chão concordar com ele.
+	ChevronYaw = 180,
 }
 
 RaceConfig.Elements = {

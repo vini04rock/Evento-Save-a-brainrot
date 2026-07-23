@@ -62,16 +62,93 @@ end
 --
 -- Divisão de papéis (o que resolve a leitura da pista):
 --   • CHÃO (seta/listras, orientado pelo MUNDO) → responde "pra onde vai" / "cuidado".
---   • HOLOGRAMA 3D (parts Neon, orientado pelo MUNDO) → a seta que aponta a direção REAL.
+--   • SETA 3D FLUTUANTE (parts foscas, orientada pelo MUNDO) → a direção REAL, de qualquer ângulo.
 -- Por que a seta agora pode existir: a regra antiga ("nada de setas") valia pro billboard,
 -- que gira com a câmera. Uma seta feita de PARTS (chão e holograma) é orientada pelo mundo
 -- e aponta certo de qualquer ângulo.
 
 local PadStyle = RaceConfig.PadStyle or {}
 
+-- ── Seta METÁLICA do chão (pads que EMPURRAM: jump pad e ventilador) ──────────
+-- Mesma forma do holograma 3D que flutua acima (ver makeHolo): haste + 2 aletas em ∧,
+-- no MESMO ângulo. A criança vê o símbolo duas vezes (no chão e no ar) e entende "pra lá"
+-- sem ler nada.
+--
+-- Por que PRETO METÁLICO e não branco: a face do pad é Neon. Desenho CLARO em cima de Neon
+-- lava no bloom e some — era exatamente o caso dos chevrons brancos que existiam aqui antes
+-- (estavam sendo desenhados, mas o pad parecia liso em jogo). Escuro RECORTA contra o neon e
+-- lê de longe, que é a mesma razão do disco escuro atrás do 🐌 no pad de lentidão.
+-- Ângulo das aletas em relação à haste. Usado pela seta do CHÃO e pelo HOLOGRAMA 3D
+-- (makeHolo) — é o que garante que as duas sejam literalmente a mesma forma.
+--
+-- 45° e não 35°: com 35° as aletas correm quase PARALELAS à haste, e as três barras leem
+-- como slivers sobrepostos em vez de uma ponta. 45° abre a cabeça e vira um arrowhead
+-- reconhecível (é o ângulo que ícone de seta usa, justamente por isso).
+local ARROW_FIN_DEG = 45
+
+-- Rampa de "metal escovado": preto → cinza → faixa especular → preto. O brilho pega um
+-- pouco da cor do pad (metal refletindo o neon embaixo), então a seta do jump pad puxa azul
+-- e a do ventilador puxa azul-claro — cada uma continua pertencendo ao seu pad.
+local function metalRamp(tint: Color3): ColorSequence
+	return ColorSequence.new({
+		ColorSequenceKeypoint.new(0.00, Color3.fromRGB(10, 10, 14)),
+		ColorSequenceKeypoint.new(0.34, Color3.fromRGB(58, 62, 72)),
+		ColorSequenceKeypoint.new(0.50, Color3.fromRGB(150, 156, 170):Lerp(tint, 0.35)),
+		ColorSequenceKeypoint.new(0.66, Color3.fromRGB(48, 52, 62)),
+		ColorSequenceKeypoint.new(1.00, Color3.fromRGB(8, 8, 12)),
+	})
+end
+
+-- Uma barra da seta (haste ou aleta), definida pelos PONTOS DA LINHA DE CENTRO — não pelo
+-- retângulo. É isso que faz o bico fechar certinho, e a conta é sutil:
+--
+-- um Frame com cantos em cápsula NÃO desenha um retângulo, desenha um TRAÇO. Um Frame de
+-- largura W e espessura T representa uma linha de centro de comprimento (W - T), com calotas
+-- de raio T/2 nas duas pontas. Ou seja, pra a calota cair EXATAMENTE em `to`, a largura tem
+-- que ser (distância + T) — não a distância.
+--
+-- Posicionar pelo retângulo (como era antes) desalinha as três barras em T/2: a haste para
+-- ANTES do bico e as aletas passam DEPOIS dele, abrindo um vão em cunha na frente. Com as
+-- três linhas de centro terminando no mesmo ponto, as calotas viram uma junta redonda única.
+local function makeArrowBar(from: Vector2, to: Vector2, thick: number, tint: Color3, parent: Instance)
+	local delta = to - from
+	local mid = (from + to) / 2
+	-- Y do canvas cresce pra BAIXO e o Rotation do Roblox é horário — os dois combinam,
+	-- então o atan2 do delta já dá o ângulo certo direto, sem inverter sinal.
+	local rotation = math.deg(math.atan2(delta.Y, delta.X))
+
+	local bar = Instance.new("Frame")
+	bar.Name = "ArrowBar"
+	bar.AnchorPoint = Vector2.new(0.5, 0.5)
+	bar.Position = UDim2.fromScale(mid.X, mid.Y)
+	bar.Size = UDim2.fromScale(delta.Magnitude + thick, thick)
+	bar.Rotation = rotation
+	bar.BackgroundColor3 = Color3.fromRGB(255, 255, 255) -- o UIGradient abaixo é quem colore
+	bar.BorderSizePixel = 0
+	bar.ZIndex = 3 -- por cima do rastro de chevrons
+	bar.Parent = parent
+	Instance.new("UICorner", bar).CornerRadius = UDim.new(0.5, 0) -- pontas arredondadas: as
+	-- barras se encaixam sem "quina" na junta da ponta da seta
+
+	-- A faixa de brilho tem que ficar alinhada com o MUNDO, não com cada barra: sem essa
+	-- compensação, cada aleta teria o brilho na inclinação dela e as três leriam como três
+	-- retângulos soltos, em vez de UMA peça de metal só.
+	local grad = Instance.new("UIGradient")
+	grad.Color = metalRamp(tint)
+	grad.Rotation = 90 - rotation
+	grad.Parent = bar
+
+	local edge = Instance.new("UIStroke")
+	edge.Color = Color3.fromRGB(205, 214, 228)
+	edge.Thickness = 2
+	edge.Transparency = 0.55 -- fio de luz = "chanfro" da peça (é o que vende o metal)
+	edge.Parent = bar
+end
+
 -- Desenha o grafismo na face de cima do pad (SurfaceGui = custo zero de parts).
---   mark = "chevrons" → setas ">>>" (o pad EMPURRA nessa direção; a face é girada pra mundo).
---   mark = "hazard"   → listras diagonais amarelo/preto + símbolo central (zona de "cuidado").
+--   mark = "arrow"  → seta metálica + rastro de chevrons (o pad EMPURRA nessa direção;
+--                     a face inteira é girada pra a seta apontar no sentido do mundo).
+--   mark = "hazard" → listras diagonais amarelo/preto + símbolo central (zona de "cuidado").
 local function paintFace(face: BasePart, mark: string, color: Color3, symbol: string?)
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = "FaceArt"
@@ -122,30 +199,98 @@ local function paintFace(face: BasePart, mark: string, color: Color3, symbol: st
 		sym.TextColor3 = Color3.fromRGB(255, 255, 255)
 		sym.Parent = disc
 	else
-		-- Chevrons ">>>" apontando pra frente da FACE. A face inteira é girada (yaw) na
-		-- criação pra apontar no sentido do mundo, então o desenho é sempre o mesmo.
-		local chev = Instance.new("TextLabel")
-		chev.AnchorPoint = Vector2.new(0.5, 0.5)
-		chev.Position = UDim2.fromScale(0.5, 0.5)
-		chev.Size = UDim2.fromScale(0.92, 0.5)
-		chev.BackgroundTransparency = 1
-		chev.Font = Enum.Font.FredokaOne
-		chev.Text = "❯❯❯"
-		chev.TextScaled = true
-		chev.TextColor3 = Color3.fromRGB(255, 255, 255)
-		chev.Rotation = PadStyle.ChevronYaw or 0 -- ajuste fino no Studio (ver PadStyle)
-		chev.Parent = gui
-		local chevStroke = Instance.new("UIStroke")
-		chevStroke.Color = color:Lerp(Color3.new(0, 0, 0), 0.5)
-		chevStroke.Thickness = 3
-		chevStroke.Parent = chev
+		-- Seta metálica + rastro, apontando pra frente da FACE. A face inteira é girada (yaw)
+		-- na criação pra apontar no sentido do mundo, então o desenho é sempre o mesmo.
+		--
+		-- Tudo mora dentro de UM container: é ele que carrega o PadStyle.ChevronYaw, então o
+		-- ajuste fino no Studio gira a composição INTEIRA de uma vez (seta + rastro juntos,
+		-- nunca desalinhados entre si).
+		local holder = Instance.new("Frame")
+		holder.Name = "Arrow"
+		holder.AnchorPoint = Vector2.new(0.5, 0.5)
+		holder.Position = UDim2.fromScale(0.5, 0.5)
+		holder.Size = UDim2.fromScale(0.94, 0.94)
+		holder.BackgroundTransparency = 1
+		holder.Rotation = PadStyle.ChevronYaw or 0 -- ajuste fino no Studio (ver PadStyle)
+		holder.Parent = gui
+		-- As posições abaixo são em ESCALA e misturam os dois eixos (as aletas saem na
+		-- diagonal). Sem o quadrado, um canvas não-quadrado entortaria o ângulo do ∧.
+		local square = Instance.new("UIAspectRatioConstraint")
+		square.AspectRatio = 1
+		square.Parent = holder
+
+		-- Geometria da seta, descrita como um DESENHO DE LINHA: um ponto de bico e três
+		-- traços saindo dele. Tudo abaixo é linha de centro — o makeArrowBar converte pra
+		-- retângulo e cuida das calotas, então as três barras fecham no bico sem vão nem sobra.
+		--
+		-- A seta fica deslocada pra FRENTE de propósito: sobra espaço atrás pro rastro, e
+		-- composição com o objeto adiantado + rastro atrás é o que lê como "indo pra lá".
+		--
+		-- ⚠️ Cada traço precisa de pelo menos ~3:1 de comprimento/espessura. Abaixo disso a
+		-- cápsula é quase só as duas calotas e a barra vira BOLHA em vez de traço.
+		-- Aqui: haste 5,5:1 e aletas 2,3:1 (a aleta pode ser mais curta porque, a 45°, ela
+		-- se funde com a haste no bico em vez de aparecer como peça separada).
+		local THICK = 0.105
+		local TIP_X = 0.90 -- onde as três linhas de centro se encontram (o bico)
+		local SHAFT_RUN = 0.58 -- do bico até a cauda
+		local FIN_RUN = 0.24 -- do bico até a ponta de cada aleta
+		local rad = math.rad(ARROW_FIN_DEG)
+
+		local tip = Vector2.new(TIP_X, 0.5)
+		local tail = Vector2.new(TIP_X - SHAFT_RUN, 0.5)
+		-- As aletas voltam do bico pra trás, abrindo pros dois lados no ângulo do ∧.
+		-- (topo/base são do CANVAS: a composição inteira gira depois, junto com o holder.)
+		local finBackX = math.cos(rad) * FIN_RUN
+		local finSpread = math.sin(rad) * FIN_RUN
+		local finTop = Vector2.new(TIP_X - finBackX, 0.5 - finSpread)
+		local finBottom = Vector2.new(TIP_X - finBackX, 0.5 + finSpread)
+
+		-- Rastro: os chevrons de antes viram um "fantasma" atrás da cauda. Escuros (o branco
+		-- sumia no neon) e apagando conforme se afastam, via UIGradient de transparência —
+		-- o mais distante é o mais fraco, como um borrão de movimento.
+		local trail = Instance.new("TextLabel")
+		trail.Name = "Trail"
+		-- Ancorado pela DIREITA e medido a partir da cauda da haste (descontando a calota,
+		-- que avança THICK/2 além dela): se a geometria da seta mudar, o rastro acompanha
+		-- sozinho em vez de descolar.
+		trail.AnchorPoint = Vector2.new(1, 0.5)
+		trail.Position = UDim2.fromScale(tail.X - THICK / 2 - 0.03, 0.5)
+		trail.Size = UDim2.fromScale(0.22, 0.22)
+		trail.BackgroundTransparency = 1
+		trail.Font = Enum.Font.FredokaOne
+		trail.Text = "❯❯❯"
+		trail.TextScaled = true
+		trail.TextColor3 = Color3.fromRGB(16, 16, 22)
+		trail.ZIndex = 1 -- atrás da seta
+		trail.Parent = holder
+		local trailFade = Instance.new("UIGradient")
+		-- Offset 0 = ponta de trás (longe da seta) → mais apagado; 1 = colado na cauda.
+		trailFade.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.72),
+			NumberSequenceKeypoint.new(1, 0.12),
+		})
+		trailFade.Parent = trail
+
+		-- Os três traços saem do MESMO ponto (o bico) — é o que fecha a ponta.
+		makeArrowBar(tail, tip, THICK, color, holder)
+		makeArrowBar(finTop, tip, THICK, color, holder)
+		makeArrowBar(finBottom, tip, THICK, color, holder)
 	end
 end
 
--- Holograma 3D flutuante feito de parts Neon (orientado pelo mundo → aponta CERTO sempre).
+-- Seta 3D flutuante acima do pad (orientada pelo MUNDO → aponta CERTO de qualquer ângulo).
 --   shape = "arrow" → seta (haste + 2 aletas em ∧) apontando pra `dir` (unit, no mundo).
 --   shape = "x"     → X (2 barras cruzadas) — pro pad de lentidão, que não tem direção.
 -- Todas as parts são Anchored/CanTouch=false (não disparam o pad) e sobem/descem juntas (bob).
+--
+-- ⚠️ POR QUE NÃO É NEON (era, e não dava pra ler): Neon é EMISSIVO — a superfície emite luz
+-- uniforme, então não recebe sombreamento. Sem sombreamento um objeto 3D não tem volume, e
+-- as barras viravam uma nuvem de luz sem forma. Justo a peça que existe pra mostrar DIREÇÃO
+-- era a que menos comunicava direção. Plástico fosco recebe luz e sombra → as três barras
+-- ganham faces distintas e o ∧ aparece.
+-- A cor é a do pad ESCURECIDA (PadStyle.HoloDarken): o corredor é claro (chão azul-claro,
+-- teto de vidro), então azul-claro sobre azul-claro sumiria. Escuro recorta contra o fundo —
+-- mesma lógica da seta preta no chão, e as duas passam a combinar.
 local function makeHolo(shape: string, dir: Vector3, position: Vector3, color: Color3, parent: Instance)
 	local floatY = PadStyle.HoloFloatY or 7
 	local bob = PadStyle.HoloBob or 0.7
@@ -154,16 +299,20 @@ local function makeHolo(shape: string, dir: Vector3, position: Vector3, color: C
 	local center = position + Vector3.new(0, floatY, 0)
 	local parts = {}
 
-	local function neon(size: Vector3, cf: CFrame)
+	local material = PadStyle.HoloMaterial or Enum.Material.SmoothPlastic
+	local holoColor = color:Lerp(Color3.new(0, 0, 0), PadStyle.HoloDarken or 0.4)
+	local transparency = PadStyle.HoloTransparency or 0
+
+	local function bar(size: Vector3, cf: CFrame)
 		local p = Instance.new("Part")
 		p.Name = "Holo"
 		p.Anchored = true
 		p.CanCollide = false
 		p.CanTouch = false
 		p.CastShadow = false
-		p.Material = Enum.Material.Neon
-		p.Color = color
-		p.Transparency = 0.1
+		p.Material = material
+		p.Color = holoColor
+		p.Transparency = transparency
 		p.Size = size
 		p.CFrame = cf
 		p.Parent = parent
@@ -172,17 +321,18 @@ local function makeHolo(shape: string, dir: Vector3, position: Vector3, color: C
 
 	if shape == "x" then
 		local base = CFrame.new(center)
-		neon(Vector3.new(len, thick, thick), base * CFrame.Angles(0, 0, math.rad(45)))
-		neon(Vector3.new(len, thick, thick), base * CFrame.Angles(0, 0, math.rad(-45)))
+		bar(Vector3.new(len, thick, thick), base * CFrame.Angles(0, 0, math.rad(45)))
+		bar(Vector3.new(len, thick, thick), base * CFrame.Angles(0, 0, math.rad(-45)))
 	else
 		-- lookAt: o -Z da part aponta pra `dir`. Haste ao longo desse eixo, ponta na frente.
 		local look = CFrame.lookAt(center, center + dir)
-		neon(Vector3.new(thick, thick, len), look) -- haste
+		bar(Vector3.new(thick, thick, len), look) -- haste
 		local tip = look * CFrame.new(0, 0, -len / 2) -- ponta (frente = -Z)
 		local fin = len * 0.55
-		-- Duas aletas abrindo pra trás a partir da ponta, formando o ∧.
-		neon(Vector3.new(thick, thick, fin), tip * CFrame.Angles(0, math.rad(35), 0) * CFrame.new(0, 0, fin / 2))
-		neon(Vector3.new(thick, thick, fin), tip * CFrame.Angles(0, math.rad(-35), 0) * CFrame.new(0, 0, fin / 2))
+		-- Duas aletas abrindo pra trás a partir da ponta, formando o ∧. Mesmo ângulo da seta
+		-- desenhada no chão (ARROW_FIN_DEG) — é o que mantém as duas sendo A MESMA forma.
+		bar(Vector3.new(thick, thick, fin), tip * CFrame.Angles(0, math.rad(ARROW_FIN_DEG), 0) * CFrame.new(0, 0, fin / 2))
+		bar(Vector3.new(thick, thick, fin), tip * CFrame.Angles(0, math.rad(-ARROW_FIN_DEG), 0) * CFrame.new(0, 0, fin / 2))
 	end
 
 	-- Bob: sobe/desce de leve. Tweens com o MESMO TweenInfo começam no mesmo frame → sincronizados.
@@ -194,7 +344,7 @@ end
 
 -- Monta um pad quadrado completo. `opts`:
 --   color       = cor da face neon
---   floorMark   = "chevrons" | "hazard"
+--   floorMark   = "arrow" | "hazard"
 --   symbol      = símbolo central (usado no "hazard", ex.: 🐌)
 --   holo        = "arrow" | "x" | nil (holograma 3D flutuante)
 --   dir         = direção do empurrão no mundo (unit) — orienta a face E a seta 3D
@@ -203,7 +353,7 @@ local function makeSquarePad(name: string, cfg, opts, position: Vector3, parent:
 	local dim = cfg.Size.X
 	local frameThk = PadStyle.FrameThickness or 1.4
 	local inset = PadStyle.FaceInset or 0.86
-	-- Gira o pad inteiro pra os chevrons apontarem no sentido do mundo (dir).
+	-- Gira o pad inteiro pra a seta do chão apontar no sentido do mundo (dir).
 	-- yaw = ângulo entre +Z e dir: dir=(0,0,1)→0° | dir=(1,0,0)→90° | dir=(-1,0,0)→-90°.
 	local dir = opts.dir or Vector3.new(0, 0, 1)
 	local yaw = math.deg(math.atan2(dir.X, dir.Z))
@@ -235,7 +385,7 @@ local function makeSquarePad(name: string, cfg, opts, position: Vector3, parent:
 	face.CFrame = base * CFrame.new(0, frameThk * 0.15, 0)
 	face.Parent = parent
 
-	paintFace(face, opts.floorMark or "chevrons", opts.color, opts.symbol)
+	paintFace(face, opts.floorMark or "arrow", opts.color, opts.symbol)
 
 	-- Pulso suave na face: faz o pad parecer "vivo".
 	TweenService:Create(
@@ -659,7 +809,7 @@ local function makeSideFan(cfg, position: Vector3, dir: number, parent: Instance
 	-- de vento (abaixo) reforça a direção. `dir` no eixo X vira o vetor-mundo do empurrão.
 	local pad = makeSquarePad("SideFan", cfg, {
 		color = cfg.Color,
-		floorMark = "chevrons",
+		floorMark = "arrow",
 		holo = "arrow",
 		dir = Vector3.new(dir, 0, 0),
 	}, position, parent)
@@ -741,7 +891,7 @@ function TrackElements.Generate(): Folder
 		-- 🚀 Empurra sempre pra FRENTE (+Z): seta no chão + holograma 3D apontando pra chegada.
 		local pad = makeSquarePad("JumpPad", c, {
 			color = c.Color,
-			floorMark = "chevrons",
+			floorMark = "arrow",
 			holo = "arrow",
 			dir = Vector3.new(0, 0, 1),
 		}, randomPadPos(c.Size), folder)
