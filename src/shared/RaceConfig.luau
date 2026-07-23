@@ -37,6 +37,16 @@ RaceConfig.ResultsSeconds = 8
 
 -- ── Power-ups e armadilhas espalhados pela pista ──────────────────────────────
 -- RandomLayout = true: cada corrida sorteia posições novas (layout único por sessão).
+--
+-- 🎨 LINGUAGEM DE COR (por FUNÇÃO, não por elemento) — a criança aprende jogando:
+--    🟢 verde / 🟡 dourado → te AJUDA    (boost, mega boost)
+--    🔴 vermelho           → te ATRAPALHA (lentidão, rolo, barra giratória)
+--    🔵 azul               → te MOVE      (jump pad, ventilador — ambos empurram)
+-- Ao criar um elemento novo, escolha a cor pelo que ele FAZ com o jogador.
+--
+-- 🔣 Symbol: ícone que flutua acima do pad (BillboardGui sempre virado pra câmera).
+-- Use símbolos SEM direção — o billboard gira junto com a câmera, então uma seta
+-- apontaria pra tela, não pro mundo. Direção quem mostra é a partícula/o movimento.
 RaceConfig.Elements = {
 	RandomLayout = true,
 	SafeStartStuds = 300, -- não coloca nada nos primeiros N studs (depois da largada)
@@ -60,8 +70,9 @@ RaceConfig.Elements = {
 		ForwardForce = 330, -- forte pra frente
 		UpForce = 70, -- só um pulinho pra sair do chão (reduzido de 240)
 		PlayerCooldown = 0.6, -- anti-spam por jogador
-		Color = Color3.fromRGB(70, 150, 255),
-		Size = Vector3.new(20, 1, 20),
+		Color = Color3.fromRGB(70, 150, 255), -- azul = te move
+		Size = Vector3.new(20, 1, 20), -- X = diâmetro do disco | Y = espessura
+		Symbol = "🚀", -- "te lança". Não precisa de seta: o empurrão é sempre pra frente.
 	},
 	-- 🔴 Lentidão: chão vermelho. -50% de velocidade por 3s (reutilizável, com cooldown).
 	Slow = {
@@ -69,8 +80,9 @@ RaceConfig.Elements = {
 		Multiplier = 0.5,
 		Duration = 3,
 		PlayerCooldown = 1.5,
-		Color = Color3.fromRGB(235, 70, 70),
-		Size = Vector3.new(20, 1, 20),
+		Color = Color3.fromRGB(235, 70, 70), -- vermelho = te atrapalha
+		Size = Vector3.new(20, 1, 20), -- X = diâmetro do disco | Y = espessura
+		Symbol = "🐌", -- lesma = "isso te deixa lento"
 	},
 	-- 🟫 Muro baixo: o player tem que PULAR por cima (atravessa toda a largura).
 	Hurdle = {
@@ -112,7 +124,8 @@ RaceConfig.Elements = {
 		SideForce = 216, -- empurrão lateral (studs/s) — +80% (era 120)
 		UpForce = 8, -- só pra "destacar" do chão e o empurrão pegar
 		PlayerCooldown = 0.8,
-		Color = Color3.fromRGB(150, 220, 255),
+		Color = Color3.fromRGB(150, 220, 255), -- azul (claro) = te move, irmão do jump pad
+		Symbol = "💨", -- pra QUE LADO sopra, quem mostra é a partícula de vento
 	},
 	-- 🛡️ Escudo: PLACA flutuante (igual ao boost) que dá IMUNIDADE às armadilhas por N segundos.
 	-- SÓ pro PRIMEIRO que atravessar (consome/some). Enquanto ativo, lentidão/rolo/ventilador/

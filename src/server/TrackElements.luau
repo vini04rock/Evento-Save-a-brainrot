@@ -27,6 +27,10 @@ local TrackElements = {}
 
 local FOLDER_NAME = "TrackElements"
 
+-- Altura (studs) em que o ícone do pad flutua acima do chão. Fica na linha do olhar
+-- do corredor: alto o bastante pra ler de longe, baixo pra não virar poluição visual.
+local PAD_ICON_FLOAT_Y = 7
+
 local function getBounds()
 	local origin = EventConfig.Origin
 	local totalLen = EventConfig.GetTotalLength()
@@ -51,20 +55,105 @@ local function playerFromHit(hit: BasePart?): Player?
 	return nil
 end
 
--- Pad plano assentado no chão (verde/azul/vermelho).
-local function makePad(name: string, size: Vector3, color: Color3, position: Vector3, parent: Instance): BasePart
-	local p = Instance.new("Part")
-	p.Name = name
-	p.Anchored = true
-	p.CanCollide = false
-	p.Size = size
-	p.Color = color
-	p.Material = Enum.Material.Neon
-	p.Position = position
-	p.TopSurface = Enum.SurfaceType.Smooth
-	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.Parent = parent
-	return p
+-- Disco de energia: anel neon por fora + miolo escuro, deitado no chão, com o
+-- ícone FLUTUANDO acima. Substitui o antigo pad quadrado chapado.
+--
+-- Por que disco e não quadrado: forma redonda lê como "power-up"; quadrado lê como
+-- pedaço de chão.
+--
+-- Por que o ícone flutua em vez de ficar desenhado no piso: a câmera da corrida olha
+-- a pista em ângulo raso, então qualquer desenho deitado achata e some. Um
+-- BillboardGui sempre vira pra câmera — lê de qualquer ângulo e distância.
+-- (Consequência: NÃO use setas aqui; o billboard gira junto com a câmera, então uma
+-- seta apontaria pra tela, não pro mundo. Direção quem mostra é partícula/movimento.)
+--
+-- Retorna a part que recebe o Touched (o anel).
+local function makeDiscPad(
+	name: string,
+	size: Vector3,
+	color: Color3,
+	symbol: string,
+	position: Vector3,
+	parent: Instance
+): BasePart
+	local diameter = size.X
+	local thickness = math.max(size.Y, 0.6)
+	-- No Roblox o Cylinder se estende no eixo X, então gira 90° em Z pra deitar no chão.
+	local flat = CFrame.Angles(0, 0, math.rad(90))
+	local ringColor = color:Lerp(Color3.new(1, 1, 1), 0.35)
+
+	local ring = Instance.new("Part")
+	ring.Name = name
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Anchored = true
+	ring.CanCollide = false
+	ring.CastShadow = false
+	ring.Size = Vector3.new(thickness, diameter, diameter)
+	ring.Color = ringColor
+	ring.Material = Enum.Material.Neon
+	ring.CFrame = CFrame.new(position) * flat
+	ring.Parent = parent
+
+	-- Miolo mais escuro e um tico mais grosso: dá o contorno de "botão" e evita
+	-- z-fighting com o anel. Não dispara nada — quem detecta o toque é o anel.
+	local core = Instance.new("Part")
+	core.Name = "Core"
+	core.Shape = Enum.PartType.Cylinder
+	core.Anchored = true
+	core.CanCollide = false
+	core.CanTouch = false
+	core.CastShadow = false
+	core.Size = Vector3.new(thickness * 1.6, diameter * 0.68, diameter * 0.68)
+	core.Color = color:Lerp(Color3.new(0, 0, 0), 0.4)
+	core.Material = Enum.Material.Neon
+	core.CFrame = CFrame.new(position) * flat
+	core.Parent = parent
+
+	-- Ícone flutuante (o que dá legibilidade real de longe).
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "PadIcon"
+	bb.Adornee = ring
+	bb.Size = UDim2.fromOffset(150, 150)
+	bb.StudsOffset = Vector3.new(0, PAD_ICON_FLOAT_Y, 0)
+	bb.MaxDistance = 420 -- não desenha de longe: poupa render em mobile/console
+	bb.Parent = ring
+
+	local badge = Instance.new("Frame")
+	badge.Name = "Badge"
+	badge.AnchorPoint = Vector2.new(0.5, 0.5)
+	badge.Position = UDim2.fromScale(0.5, 0.5)
+	badge.Size = UDim2.fromScale(1, 1)
+	badge.BackgroundColor3 = Color3.fromRGB(12, 14, 24)
+	badge.BackgroundTransparency = 0.25
+	badge.Parent = bb
+	local badgeCorner = Instance.new("UICorner")
+	badgeCorner.CornerRadius = UDim.new(0.5, 0) -- círculo
+	badgeCorner.Parent = badge
+	local badgeStroke = Instance.new("UIStroke")
+	badgeStroke.Color = ringColor
+	badgeStroke.Thickness = 4
+	badgeStroke.Parent = badge
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Symbol"
+	label.AnchorPoint = Vector2.new(0.5, 0.5)
+	label.Position = UDim2.fromScale(0.5, 0.5)
+	label.Size = UDim2.fromScale(0.72, 0.72)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.Text = symbol
+	label.TextScaled = true
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.Parent = badge
+
+	-- Pulso lento no anel: faz o pad parecer "vivo" em vez de decoração parada.
+	TweenService:Create(
+		ring,
+		TweenInfo.new(1.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+		{ Transparency = 0.35 }
+	):Play()
+
+	return ring
 end
 
 -- 🟢 Boost: PLACA flutuante semitransparente com símbolo de velocidade (o player atravessa).
@@ -471,7 +560,9 @@ end
 
 -- 💨 Ventilador lateral: pad no chão que sopra o player pro lado (dir = -1 ou +1 no eixo X).
 local function makeSideFan(cfg, position: Vector3, dir: number, parent: Instance): BasePart
-	local pad = makePad("SideFan", cfg.Size, cfg.Color, position, parent)
+	-- A DIREÇÃO do sopro quem mostra é a partícula de vento logo abaixo (ela usa
+	-- Acceleration em coordenadas de mundo, então aponta certo sempre).
+	local pad = makeDiscPad("SideFan", cfg.Size, cfg.Color, tostring(cfg.Symbol or "💨"), position, parent)
 
 	local light = Instance.new("PointLight")
 	light.Color = cfg.Color
@@ -479,6 +570,15 @@ local function makeSideFan(cfg, position: Vector3, dir: number, parent: Instance
 	light.Range = 10
 	light.Shadows = false
 	light.Parent = pad
+
+	-- O disco é um Cylinder DEITADO (girado 90°), e EmissionDirection é relativo à
+	-- part — direto nele, o vento sairia pra cima. Este Attachment tem WorldCFrame
+	-- sem rotação, então os eixos do emitter voltam a bater com os do mundo
+	-- (Right = +X) independente de como o disco esteja girado.
+	local windOrigin = Instance.new("Attachment")
+	windOrigin.Name = "WindOrigin"
+	windOrigin.Parent = pad
+	windOrigin.WorldCFrame = CFrame.new(position)
 
 	-- "Vento" visível saindo pro lado (dica pro jogador).
 	local emitter = Instance.new("ParticleEmitter")
@@ -496,7 +596,7 @@ local function makeSideFan(cfg, position: Vector3, dir: number, parent: Instance
 		NumberSequenceKeypoint.new(0, 0.35),
 		NumberSequenceKeypoint.new(1, 1),
 	})
-	emitter.Parent = pad
+	emitter.Parent = windOrigin
 
 	local cooldown: { [Player]: number } = {}
 	pad.Touched:Connect(function(hit)
@@ -537,10 +637,14 @@ function TrackElements.Generate(): Folder
 		wireBoost(makeBoostGate(cfg.SpeedBoost, pos, folder), cfg.SpeedBoost)
 	end
 	for _ = 1, cfg.JumpPad.Count do
-		wireJumpPad(makePad("JumpPad", cfg.JumpPad.Size, cfg.JumpPad.Color, randomPadPos(cfg.JumpPad.Size), folder), cfg.JumpPad)
+		local c = cfg.JumpPad
+		local pad = makeDiscPad("JumpPad", c.Size, c.Color, tostring(c.Symbol or "🚀"), randomPadPos(c.Size), folder)
+		wireJumpPad(pad, c)
 	end
 	for _ = 1, cfg.Slow.Count do
-		wireSlow(makePad("SlowPad", cfg.Slow.Size, cfg.Slow.Color, randomPadPos(cfg.Slow.Size), folder), cfg.Slow)
+		local c = cfg.Slow
+		local pad = makeDiscPad("SlowPad", c.Size, c.Color, tostring(c.Symbol or "🐌"), randomPadPos(c.Size), folder)
+		wireSlow(pad, c)
 	end
 
 	local hurdleWidth = EventConfig.Floor.Width
